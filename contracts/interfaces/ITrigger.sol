@@ -26,20 +26,6 @@ abstract contract ITrigger {
   /// @notice Emitted when the trigger is activated
   event TriggerActivated();
 
-  constructor(
-    string memory _name,
-    string memory _symbol,
-    string memory _description,
-    uint256[] memory _platformIds,
-    address _recipient
-  ) {
-    name = _name;
-    description = _description;
-    symbol = _symbol;
-    platformIds = _platformIds;
-    recipient = _recipient;
-  }
-
   /**
    * @notice Returns array of IDs, where each ID corresponds to a platform covered by this trigger
    * @dev See documentation for mapping of ID numbers to platforms
@@ -69,5 +55,19 @@ abstract contract ITrigger {
     emit TriggerActivated();
     isTriggered = true;
     return isTriggered;
+  }
+
+  constructor(
+    string memory _name,
+    string memory _symbol,
+    string memory _description,
+    uint256[] memory _platformIds,
+    address _recipient
+  ) {
+    name = _name;
+    description = _description;
+    symbol = _symbol;
+    platformIds = _platformIds;
+    recipient = _recipient;
   }
 }
