@@ -31,7 +31,7 @@ All guides are located in the `guides` folder and contain up to two files:
 1. An executable TypeScript file
 2. A markdown file with additional information and details
 
-A script may be run with the command `yarn ts-node guides/<script-name.ts>`. Additional notes on the guides:
+A script may be run with the command `yarn hardhat run guides/<script-name.ts>`. Additional notes on the guides:
 
 - All TypeScript files are heavily commented to aid understanding and readability, and TypeScript is used throughout so there's no ambiguity around what a variable or parameter is.
 - Some guides require contracts. Any required contracts live in the `contracts` folder, and you can compile the contracts in that folder with `yarn build`.
@@ -40,7 +40,7 @@ A script may be run with the command `yarn ts-node guides/<script-name.ts>`. Add
 
 And finally, a few notes on Hardhat:
 
-- The scripts explicitly require the Hardhat Runtime Environment with `import hre from 'hardhat'`. This is optional, but is required for running the script in a standalone fashion with `yarn ts-node <script.ts>`. When running the script with `yarn hardhat run <script>` this explicit import is unnecessary. We default to the explicit, `ts-node` approach so there's less hardhat magic and improved readability and portability. Similarly, this is why some scripts call `await hre.run('compile')`&mdash;this compiles our contracts, and would otherwise be done automatically when running with `yarn hardhat run <script>`
+- The scripts explicitly require the Hardhat Runtime Environment with `import hre from 'hardhat'`. This is optional, but is required if you wanted to run the script in a standalone fashion with `yarn ts-node <script.ts>`. When running the script with `yarn hardhat run <script>` this explicit import is unnecessary. We default to the explicit, `ts-node` approach so there's less hardhat magic and improved readability and portability. Similarly, this is why some scripts call `await hre.run('compile')`&mdash;this compiles our contracts, and would otherwise be done automatically when running with `yarn hardhat run <script>`
 - Some scripts deploy contracts by using `hre.ethers.getContractFactory()` to get the Contract Factory instance. If you want to do this without Hardhat, use the regular ethers [Contract Factory](https://docs.ethers.io/v5/single-page/#/v5/api/contract/contract-factory/) approach. Deploying contracts is not the focus of these guides, so it uses the Hardhat approach for convenience and brevity.
 - For convenience, these scripts often access ethers methods using `hre.ethers`. If you want to remove Hardhat, you should be able to replace `hre.ethers` with `ethers` seamlessly.
 - Normally, if you want to know which chain ID your provider is connected to, you could simply use `(await ethers.provider.getNetwork()).chainId`. Because these scripts runs against a local, forked network, the chain ID is Hardhat's default value of 1337. The `getContractAddress()` helper method in `utils/utils.ts` relies on the chain ID to properly fetch contract addresses, so we define a custom `getChainId()` method to override the chain ID based on which network we've forked locally against
