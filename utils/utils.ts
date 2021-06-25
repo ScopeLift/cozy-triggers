@@ -1,7 +1,10 @@
+import { BigNumber } from '@ethersproject/bignumber';
 import { Contract } from '@ethersproject/contracts';
 import { JsonRpcProvider, TransactionResponse } from '@ethersproject/providers';
-import { parseEther, parseUnits } from '@ethersproject/units';
+import { formatUnits, parseEther, parseUnits } from '@ethersproject/units';
+import readline from 'readline';
 import chalk from 'chalk';
+import axios from 'axios';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import mainnetDeployAddresses from '../deployments/mainnet.json';
 
@@ -32,6 +35,7 @@ type ContractNames = keyof typeof mainnetAddresses;
 // Logging helper methods
 export const logSuccess = (msg: string) => console.log(`${chalk.green('\u2713')} ${msg}`); // \u2713 = check symbol
 export const logFailure = (msg: string) => console.log(`${chalk.red('\u2717')} ${msg}`); // \u2717 = x symbol
+export const logWarning = (msg: string) => console.log(chalk.yellow(msg));
 
 /**
  * @notice Gets a contract's address by it's name and chainId
@@ -183,4 +187,31 @@ const parseLog = (contract: Contract) => (log: { topics: Array<string>; data: st
   } catch (err) {
     return undefined;
   }
+};
+
+// Helper method to fetch JSON
+const fetch = (url: string) => axios.get(url).then((res) => res);
+
+// Get latest mainnet gas price
+export const getGasPrice = async () => {
+  try {
+    const response = await fetch('https://www.gasnow.org/api/v3/gas/price');
+    return BigNumber.from(response.data.data.rapid);
+  } catch (e) {
+    // Gas price to fallback to if API call fails
+    const fallbackGasPrice = parseUnits('50', 'gwei');
+    logWarning(`Could not fetch gas price. Using fallback gas price ${formatUnits(fallbackGasPrice, 'gwei')} gwei`);
+    return fallbackGasPrice;
+  }
+};
+
+// Helper method for waiting on user input. Source: https://stackoverflow.com/a/50890409
+export const waitForInput = (query: string) => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) =>
+    rl.question(query, (ans) => {
+      rl.close();
+      resolve(ans);
+    })
+  );
 };
