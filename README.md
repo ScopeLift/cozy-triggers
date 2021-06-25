@@ -1,8 +1,35 @@
 # Cozy Developer Guides
 
+## Triggers contained in this repository
+
+- `CompoundExchangeRate`: Triggers if a Compound market's `exchangeRateStored` drops between consecutive blocks
+- `YearnSharePrice`: Triggers if a Yearn vault's `pricePerShare` drops between consecutive blocks
+
+## Development and Deployment
+
+1. Install dependencies with `yarn`
+2. Compile contracts with `yarn compile`
+3. Run tests with `yarn test`
+
+If tests are passing, you can deploy trigger contracts with the following steps:
+
+1. Copy the file called `.env.example` and rename it to `.env`
+2. Fill in your `RPC_URL` (such as an Infura endpoint) and the `PRIVATE_KEY` which is the private key of the deployer account. `ETHERSCAN_API_KEY` is only needed for verifying contracts
+3. To deploy the Compound protection market against a local forked network, run `yarn run hardhat scripts/create-protection-market-compound.ts`. To deploy it against mainnet use `yarn run hardhat scripts/create-protection-market-yearn.ts --network mainnet`
+4. Use the same approach to deploy the Yearn protection market, but replace `create-protection-market-compound.ts` with `create-protection-market-yearn.ts`
+
+Everything below here is the original README content (from https://github.com/Cozy-Finance/cozy-developer-guides/) and is left as a reference
+
+---
+
+# Original README
+
 This repository contains various guides to show you how to interact with the Cozy Protocol. These guides assume knowledge of [TypeScript](https://www.typescriptlang.org/), [ethers.js](https://docs.ethers.io/v5/single-page/), and [Solidity](https://docs.soliditylang.org/en/v0.8.3/), as well as familiarity with the [Cozy Protocol](https://app.gitbook.com/@cozy-finance-1/s/cozy-docs/for-developers/technical-overview). [Hardhat](https://hardhat.org/) is used as well, but you shouldn't need to be too familiar with Hardhat to use this repo.
 
 - [Cozy Developer Guides](#cozy-developer-guides)
+  - [Triggers contained in this repository](#triggers-contained-in-this-repository)
+  - [Development and Deployment](#development-and-deployment)
+- [Original README](#original-readme)
   - [Getting Started](#getting-started)
   - [Usage](#usage)
   - [Index of Guides](#index-of-guides)
