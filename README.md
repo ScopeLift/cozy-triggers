@@ -15,7 +15,7 @@ If tests are passing, you can deploy trigger contracts with the following steps:
 
 1. Copy the file called `.env.example` and rename it to `.env`
 2. Fill in your `RPC_URL` (such as an Infura endpoint) and the `PRIVATE_KEY` which is the private key of the deployer account. `ETHERSCAN_API_KEY` is only needed for verifying contracts
-3. To deploy the Compound protection market against a local forked network, run `yarn run hardhat scripts/create-protection-market-compound.ts`. To deploy it against mainnet use `yarn run hardhat scripts/create-protection-market-yearn.ts --network mainnet`
+3. To deploy the Compound protection market against a local forked network, run `yarn hardhat run scripts/create-protection-market-compound.ts`. To deploy it against mainnet use `yarn hardhat run scripts/create-protection-market-yearn.ts --network mainnet`
 4. Use the same approach to deploy the Yearn protection market, but replace `create-protection-market-compound.ts` with `create-protection-market-yearn.ts`
 
 Everything below here is the original README content (from https://github.com/Cozy-Finance/cozy-developer-guides/) and is left as a reference
