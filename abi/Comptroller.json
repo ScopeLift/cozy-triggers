@@ -1,5 +1,11 @@
 [
   {
+    "inputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -401,6 +407,25 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint256",
+        "name": "oldMaxAssets",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newMaxAssets",
+        "type": "uint256"
+      }
+    ],
+    "name": "NewMaxAssets",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "address",
         "name": "oldPauseGuardian",
         "type": "address"
@@ -521,21 +546,6 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "constant": false,
-    "inputs": [
-      {
-        "internalType": "contract Unitroller",
-        "name": "unitroller",
-        "type": "address"
-      }
-    ],
-    "name": "_become",
-    "outputs": [],
     "payable": false,
     "stateMutability": "nonpayable",
     "type": "function"
@@ -798,6 +808,21 @@
     "constant": false,
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "newMaxAssets",
+        "type": "uint256"
+      }
+    ],
+    "name": "_setMaxAssets",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
         "internalType": "contract CToken",
         "name": "cToken",
         "type": "address"
@@ -992,7 +1017,7 @@
     "constant": false,
     "inputs": [
       {
-        "internalType": "contract CToken",
+        "internalType": "address",
         "name": "cToken",
         "type": "address"
       }
@@ -1533,6 +1558,37 @@
       {
         "internalType": "contract TriggerInterface",
         "name": "trigger",
+        "type": "address"
+      }
+    ],
+    "name": "deployProtectionMarket",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "underlying",
+        "type": "address"
+      },
+      {
+        "internalType": "contract TriggerInterface",
+        "name": "trigger",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "interestRateModel",
         "type": "address"
       }
     ],
