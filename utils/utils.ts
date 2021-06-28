@@ -24,7 +24,7 @@ const mainnetAddresses = {
   CozyUSDC: mainnetDeployAddresses['CErc20Immutable:Money Market:Cozy USD Coin'],
   CozyWBTC: mainnetDeployAddresses['CErc20Immutable:Money Market:Cozy Wrapped BTC'],
   Maximillion: mainnetDeployAddresses['Maximillion:Maximillion'],
-  YearnProtectionMarket: '0x37e45483B5242c2b3f35ed153dDAf7CE45C1C7B2', // sample protection market deployed on mainnet
+  YearnProtectionMarket: '0x9affB6D8568cEfa2837d251b1553967430D1a5e5', // sample protection market deployed on mainnet
 };
 
 // Mapping of chainId to contract addresses
