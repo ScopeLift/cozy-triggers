@@ -28,4 +28,9 @@ contract MockCrvTricrypto is ICrvTricrypto {
   function set(uint256 _get_virtual_price) external {
     get_virtual_price = _get_virtual_price;
   }
+
+  function balances(uint256 index) external pure override returns (uint256) {
+    require(index == 0 || index == 1 || index == 2, "bad index");
+    return 1;
+  }
 }

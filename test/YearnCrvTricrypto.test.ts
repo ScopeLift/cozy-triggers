@@ -49,7 +49,7 @@ describe('YearnCrvTricrypto', function () {
       expect(await trigger.vault()).to.equal(triggerParams[5]);
       expect(await trigger.curve()).to.equal(triggerParams[6]);
       expect(await trigger.vaultTol()).to.equal('500');
-      expect(await trigger.curveTol()).to.equal('250');
+      expect(await trigger.virtualPriceTol()).to.equal('490');
     });
   });
 
@@ -157,7 +157,7 @@ describe('YearnCrvTricrypto', function () {
       }
 
       // Read the trigger's tolerance (which is stored as percentage with 18 decimals such that 1e18 = 100%)
-      const tolerance = (await trigger.curveTol()).toBigInt();
+      const tolerance = (await trigger.virtualPriceTol()).toBigInt();
 
       // Increase virtual price to a larger value, should NOT be triggered (sanity check)
       await modifyLastVirtualPrice(101n, 100n); // 1% increase
