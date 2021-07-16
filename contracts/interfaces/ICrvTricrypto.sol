@@ -15,4 +15,7 @@ interface ICrvTricrypto {
 
   /// @notice Pool admin fee
   function admin_fee() external view returns (uint256);
+
+  /// @notice Pool admin fee
+  function balances(uint256 index) external view returns (uint256);
 }
