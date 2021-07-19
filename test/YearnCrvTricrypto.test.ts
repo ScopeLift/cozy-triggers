@@ -1,41 +1,64 @@
-import { artifacts, ethers, waffle } from 'hardhat';
+import { artifacts, ethers, network, waffle } from 'hardhat';
+import type { BigNumber } from '@ethersproject/bignumber';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, MockYVaultV2, MockCrvTricrypto, YearnCrvTricrypto } from '../typechain';
+import { MockCozyToken, IYVaultV2, ICrvTricrypto, YearnCrvTricrypto } from '../typechain';
 
-const { deployContract } = waffle;
+const { deployContract, loadFixture } = waffle;
+const { MaxUint256 } = ethers.constants;
+const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
+const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
 
 describe('YearnCrvTricrypto', function () {
-  let mockYUsdc: MockYVaultV2;
-  let mockCrvTricrypto: MockCrvTricrypto;
-  let deployer: SignerWithAddress, recipient: SignerWithAddress;
+  let yCrvTricrypto: IYVaultV2;
+  let crvTricrypto: ICrvTricrypto;
+  let deployer: SignerWithAddress;
   let trigger: YearnCrvTricrypto;
   let triggerParams: (string | number[])[] = []; // trigger params deployment parameters
 
-  before(async () => {
-    [deployer, recipient] = await ethers.getSigners();
-  });
+  /**
+   * @notice Change Yearn vault's price per share by modifying total supply (since share price is a getter method that
+   * divides by total token supply)
+   * @param supply New total supply. To zero out share price, use MAX_UINT256, which simulates unlimited minting of
+   * shares, making price per share effectively 0
+   */
+  async function setYearnTotalSupply(supply: BigNumber) {
+    const storageSlot = '0x5'; // storage slot 5 in Yearn vault contains total supply
+    await network.provider.send('hardhat_setStorageAt', [yearnVaultAddress, storageSlot, supply.toHexString()]);
+  }
 
-  beforeEach(async () => {
-    // Deploy Mock contracts
-    const mockYVaultY2Artifact = await artifacts.readArtifact('MockYVaultV2');
-    mockYUsdc = <MockYVaultV2>await deployContract(deployer, mockYVaultY2Artifact);
-    const mockCrvTricryptoArtifact = await artifacts.readArtifact('MockCrvTricrypto');
-    mockCrvTricrypto = <MockCrvTricrypto>await deployContract(deployer, mockCrvTricryptoArtifact);
+  /**
+   * @dev We change the values in storage slots of mainnet contracts in our tests, and normally these would persist
+   * between tests. But we don't want that, so we use this fixture to automatically snapshot the state after loading
+   * the fixture and revert to it before each test: https://github.com/EthWorks/Waffle/blob/3f46a6c8093cb9edb1a68c3ba15c4b4499ad595d/waffle-provider/src/fixtures.ts#L13-L35
+   */
+  async function setupFixture() {
+    // Get user accounts
+    const [deployer, recipient] = await ethers.getSigners();
+
+    // Get mainnet contract instances
+    const yCrvTricrypto = <IYVaultV2>await ethers.getContractAt('IYVaultV2', yearnVaultAddress);
+    const crvTricrypto = <ICrvTricrypto>await ethers.getContractAt('ICrvTricrypto', curveTricryptoAddress);
 
     // Deploy YearnCrvTricrypto trigger
-    triggerParams = [
+    const triggerParams = [
       'Yearn Curve Tricrypto Trigger', // name
       'yCRV-TRICRYPTO-TRIG', // symbol
       'Triggers when the Yearn vault share price decreases, or the tricrypto pool fails', // description
       [1, 3], // platform IDs for Yearn and Curve, respectively
       recipient.address, // subsidy recipient
-      mockYUsdc.address, // Yearn crvTricrypto vault
-      mockCrvTricrypto.address, // Curve Tricrypto pool
+      yearnVaultAddress, // mainnet Yearn crvTricrypto vault
+      curveTricryptoAddress, // mainnet Curve Tricrypto pool
     ];
 
     const YearnCrvTricryptoArtifact = await artifacts.readArtifact('YearnCrvTricrypto');
-    trigger = <YearnCrvTricrypto>await deployContract(deployer, YearnCrvTricryptoArtifact, triggerParams);
+    const trigger = <YearnCrvTricrypto>await deployContract(deployer, YearnCrvTricryptoArtifact, triggerParams);
+
+    return { deployer, yCrvTricrypto, crvTricrypto, trigger, triggerParams };
+  }
+
+  beforeEach(async () => {
+    ({ deployer, yCrvTricrypto, crvTricrypto, trigger, triggerParams } = await loadFixture(setupFixture));
   });
 
   describe('Deployment', () => {
@@ -63,7 +86,7 @@ describe('YearnCrvTricrypto', function () {
     it('toggles trigger when called on a broken market', async () => {
       expect(await trigger.isTriggered()).to.be.false;
 
-      await mockYUsdc.set(1);
+      await setYearnTotalSupply(MaxUint256);
       expect(await trigger.isTriggered()).to.be.false; // trigger not updated yet, so still expect false
 
       const tx = await trigger.checkAndToggleTrigger();
@@ -79,7 +102,7 @@ describe('YearnCrvTricrypto', function () {
       expect(await mockCozyToken.isTriggered()).to.be.false;
 
       // Break the yVault
-      await mockYUsdc.set(1);
+      await setYearnTotalSupply(MaxUint256);
       await mockCozyToken.checkAndToggleTrigger();
       expect(await mockCozyToken.isTriggered()).to.be.true;
     });
@@ -91,9 +114,9 @@ describe('YearnCrvTricrypto', function () {
 
       // Update values
       const newPricePerShare = initialPricePerShare + 250n;
-      await mockYUsdc.set(newPricePerShare);
+      await yCrvTricrypto.set(newPricePerShare);
       const newVirtualPrice = initialVirtualPrice + 123n;
-      await mockCrvTricrypto.set(newVirtualPrice);
+      await crvTricrypto.set(newVirtualPrice);
 
       // Call checkAndToggleTrigger to simulate someone using the protocol
       await trigger.checkAndToggleTrigger();
@@ -111,8 +134,8 @@ describe('YearnCrvTricrypto', function () {
       async function modifyLastPricePerShare(numerator: bigint, denominator: bigint) {
         const lastPricePerShare = (await trigger.lastPricePerShare()).toBigInt();
         const newPricePerShare = (lastPricePerShare * numerator) / denominator;
-        await mockYUsdc.set(newPricePerShare);
-        expect(await mockYUsdc.pricePerShare()).to.equal(newPricePerShare);
+        await yCrvTricrypto.set(newPricePerShare);
+        expect(await yCrvTricrypto.pricePerShare()).to.equal(newPricePerShare);
       }
 
       // Executes checkAndToggleTrigger and verifies the expected state
@@ -146,8 +169,8 @@ describe('YearnCrvTricrypto', function () {
       async function modifyLastVirtualPrice(numerator: bigint, denominator: bigint) {
         const lastVirtualPrice = (await trigger.lastVirtualPrice()).toBigInt();
         const newVirtualPrice = (lastVirtualPrice * numerator) / denominator;
-        await mockCrvTricrypto.set(newVirtualPrice);
-        expect(await mockCrvTricrypto.get_virtual_price()).to.equal(newVirtualPrice);
+        await crvTricrypto.set(newVirtualPrice);
+        expect(await crvTricrypto.get_virtual_price()).to.equal(newVirtualPrice);
       }
 
       // Executes checkAndToggleTrigger and verifies the expected state
