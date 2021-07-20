@@ -1,17 +1,20 @@
 import { artifacts, ethers, network, waffle } from 'hardhat';
-import type { BigNumber } from '@ethersproject/bignumber';
+import type { BigNumberish } from '@ethersproject/bignumber';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, IYVaultV2, ICrvTricrypto, YearnCrvTricrypto } from '../typechain';
+import { MockCozyToken, IYVaultV2, ICrvTricrypto, YearnCrvTricrypto, IERC20 } from '../typechain';
 
 const { deployContract, loadFixture } = waffle;
-const { MaxUint256 } = ethers.constants;
+const { MaxUint256: MAX_UINT } = ethers.constants;
+const BN = (x: BigNumberish) => ethers.BigNumber.from(x);
 const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
 const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
+const curveTokenAddress = '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff'; // Curve Tricrypto pool token
 
 describe('YearnCrvTricrypto', function () {
   let yCrvTricrypto: IYVaultV2;
   let crvTricrypto: ICrvTricrypto;
+  let crvToken: IERC20;
   let deployer: SignerWithAddress;
   let trigger: YearnCrvTricrypto;
   let triggerParams: (string | number[])[] = []; // trigger params deployment parameters
@@ -22,9 +25,22 @@ describe('YearnCrvTricrypto', function () {
    * @param supply New total supply. To zero out share price, use MAX_UINT256, which simulates unlimited minting of
    * shares, making price per share effectively 0
    */
-  async function setYearnTotalSupply(supply: BigNumber) {
+  async function setYearnTotalSupply(supply: BigNumberish) {
     const storageSlot = '0x5'; // storage slot 5 in Yearn vault contains total supply
-    await network.provider.send('hardhat_setStorageAt', [yearnVaultAddress, storageSlot, supply.toHexString()]);
+    const value = ethers.utils.hexZeroPad(BN(supply).toHexString(), 32);
+    await network.provider.send('hardhat_setStorageAt', [yearnVaultAddress, storageSlot, value]);
+  }
+
+  /**
+   * @notice Change Curve pool's virtual price by modifying total supply (since virtual price is a getter method that
+   * divides by total token supply)
+   * @param supply New total supply. To zero out share price, use MAX_UINT256, which simulates unlimited minting of
+   * shares, making price per share effectively 0
+   */
+  async function setCrvTotalSupply(supply: BigNumberish) {
+    const storageSlot = '0x4'; // storage slot 4 is Curve token total supply
+    const value = ethers.utils.hexZeroPad(BN(supply).toHexString(), 32);
+    await network.provider.send('hardhat_setStorageAt', [curveTokenAddress, storageSlot, value]);
   }
 
   /**
@@ -39,6 +55,7 @@ describe('YearnCrvTricrypto', function () {
     // Get mainnet contract instances
     const yCrvTricrypto = <IYVaultV2>await ethers.getContractAt('IYVaultV2', yearnVaultAddress);
     const crvTricrypto = <ICrvTricrypto>await ethers.getContractAt('ICrvTricrypto', curveTricryptoAddress);
+    const crvToken = <IERC20>await ethers.getContractAt('IERC20', curveTokenAddress);
 
     // Deploy YearnCrvTricrypto trigger
     const triggerParams = [
@@ -54,11 +71,11 @@ describe('YearnCrvTricrypto', function () {
     const YearnCrvTricryptoArtifact = await artifacts.readArtifact('YearnCrvTricrypto');
     const trigger = <YearnCrvTricrypto>await deployContract(deployer, YearnCrvTricryptoArtifact, triggerParams);
 
-    return { deployer, yCrvTricrypto, crvTricrypto, trigger, triggerParams };
+    return { deployer, yCrvTricrypto, crvTricrypto, crvToken, trigger, triggerParams };
   }
 
   beforeEach(async () => {
-    ({ deployer, yCrvTricrypto, crvTricrypto, trigger, triggerParams } = await loadFixture(setupFixture));
+    ({ deployer, yCrvTricrypto, crvTricrypto, crvToken, trigger, triggerParams } = await loadFixture(setupFixture));
   });
 
   describe('Deployment', () => {
@@ -86,7 +103,7 @@ describe('YearnCrvTricrypto', function () {
     it('toggles trigger when called on a broken market', async () => {
       expect(await trigger.isTriggered()).to.be.false;
 
-      await setYearnTotalSupply(MaxUint256);
+      await setYearnTotalSupply(MAX_UINT);
       expect(await trigger.isTriggered()).to.be.false; // trigger not updated yet, so still expect false
 
       const tx = await trigger.checkAndToggleTrigger();
@@ -102,21 +119,17 @@ describe('YearnCrvTricrypto', function () {
       expect(await mockCozyToken.isTriggered()).to.be.false;
 
       // Break the yVault
-      await setYearnTotalSupply(MaxUint256);
+      await setYearnTotalSupply(MAX_UINT);
       await mockCozyToken.checkAndToggleTrigger();
       expect(await mockCozyToken.isTriggered()).to.be.true;
     });
 
     it('properly updates the saved state', async () => {
-      // Get initial state
-      const initialPricePerShare = (await trigger.lastPricePerShare()).toBigInt();
-      const initialVirtualPrice = (await trigger.lastVirtualPrice()).toBigInt();
-
       // Update values
-      const newPricePerShare = initialPricePerShare + 250n;
-      await yCrvTricrypto.set(newPricePerShare);
-      const newVirtualPrice = initialVirtualPrice + 123n;
-      await crvTricrypto.set(newVirtualPrice);
+      await setYearnTotalSupply(10n ** 18n); // don't set them too high or trigger will toggle
+      const newPricePerShare = await yCrvTricrypto.pricePerShare();
+      await setCrvTotalSupply(10n ** 18n);
+      const newVirtualPrice = await crvTricrypto.get_virtual_price();
 
       // Call checkAndToggleTrigger to simulate someone using the protocol
       await trigger.checkAndToggleTrigger();
@@ -130,12 +143,17 @@ describe('YearnCrvTricrypto', function () {
     });
 
     it('properly accounts for price per share tolerance', async () => {
-      // Modify the currently stored share price by a set tolerance
+      // Modify the currently stored share price by a set tolerance. To increase share price by a tolerance, we
+      // decrease total supply by that amount
       async function modifyLastPricePerShare(numerator: bigint, denominator: bigint) {
         const lastPricePerShare = (await trigger.lastPricePerShare()).toBigInt();
+        const lastTotalSupply = (await yCrvTricrypto.totalSupply()).toBigInt();
+        const newTotalSupply = (lastTotalSupply * denominator) / numerator;
         const newPricePerShare = (lastPricePerShare * numerator) / denominator;
-        await yCrvTricrypto.set(newPricePerShare);
-        expect(await yCrvTricrypto.pricePerShare()).to.equal(newPricePerShare);
+        await setYearnTotalSupply(newTotalSupply);
+        // Due to rounding error, values may sometimes differ by 1 wei, so validate with a tolerance +/2 wei
+        expect(await yCrvTricrypto.pricePerShare()).to.be.above(newPricePerShare - 2n);
+        expect(await yCrvTricrypto.pricePerShare()).to.be.below(newPricePerShare + 2n);
       }
 
       // Executes checkAndToggleTrigger and verifies the expected state
@@ -168,9 +186,13 @@ describe('YearnCrvTricrypto', function () {
       // Modify the currently stored virtual price by a set tolerance
       async function modifyLastVirtualPrice(numerator: bigint, denominator: bigint) {
         const lastVirtualPrice = (await trigger.lastVirtualPrice()).toBigInt();
+        const lastTotalSupply = (await crvToken.totalSupply()).toBigInt();
+        const newTotalSupply = (lastTotalSupply * denominator) / numerator;
         const newVirtualPrice = (lastVirtualPrice * numerator) / denominator;
-        await crvTricrypto.set(newVirtualPrice);
-        expect(await crvTricrypto.get_virtual_price()).to.equal(newVirtualPrice);
+        await setCrvTotalSupply(newTotalSupply);
+        // Due to rounding error, values may sometimes differ by 1 wei, so validate with a tolerance +/2 wei
+        expect(await crvTricrypto.get_virtual_price()).to.be.above(newVirtualPrice - 2n);
+        expect(await crvTricrypto.get_virtual_price()).to.be.below(newVirtualPrice + 2n);
       }
 
       // Executes checkAndToggleTrigger and verifies the expected state
