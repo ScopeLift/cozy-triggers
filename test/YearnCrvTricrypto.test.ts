@@ -1,17 +1,51 @@
+// --- Imports ---
 import { artifacts, ethers, network, waffle } from 'hardhat';
-import type { BigNumberish } from '@ethersproject/bignumber';
 import { expect } from 'chai';
+import type { BigNumberish } from '@ethersproject/bignumber';
+import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { MockCozyToken, IYVaultV2, ICrvTricrypto, YearnCrvTricrypto, IERC20 } from '../typechain';
 
+// --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
 const { MaxUint256: MAX_UINT } = ethers.constants;
+const { defaultAbiCoder, hexZeroPad, hexStripZeros } = ethers.utils;
 const BN = (x: BigNumberish) => ethers.BigNumber.from(x);
+const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
 const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
 const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
 const curveTokenAddress = '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff'; // Curve Tricrypto pool token
 
+// Mainnet token addresses
+const tokenAddresses = {
+  usdt: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+  wbtc: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+  weth: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+};
+
+// Define the balanceOf mapping slot number to use for finding the slot used to store balance of a given address
+const tokenBalanceOfSlots = { usdt: '0x2', wbtc: '0x0', weth: '0x3' };
+
+// --- Helper methods ---
+// Returns the storage slot for a mapping from an `address` to a value, given the slot of the mapping itself, `mappingSlot`
+// Read more at https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html#mappings-and-dynamic-arrays
+const getStorageSlot = (mappingSlot: string, address: string) => {
+  // `defaultAbiCoder.encode` is equivalent to Solidity's `abi.encode()`, and we strip leading zeros from the hashed
+  // value to conform to the JSON-RPC spec: https://ethereum.org/en/developers/docs/apis/json-rpc/#hex-value-encoding
+  return hexStripZeros(keccak256(defaultAbiCoder.encode(['address', 'uint256'], [address, mappingSlot])));
+};
+
+// Gets token balance
+async function balanceOf(token: keyof typeof tokenBalanceOfSlots, address: string) {
+  const tokenAddress = tokenAddresses[token];
+  if (!tokenAddress) throw new Error('Invalid token selection');
+  const abi = ['function balanceOf(address) external view returns (uint256)'];
+  const contract = new ethers.Contract(tokenAddress, abi, ethers.provider);
+  return (await contract.balanceOf(address)).toBigInt();
+}
+
 describe('YearnCrvTricrypto', function () {
+  // --- Data ---
   let yCrvTricrypto: IYVaultV2;
   let crvTricrypto: ICrvTricrypto;
   let crvToken: IERC20;
@@ -19,6 +53,7 @@ describe('YearnCrvTricrypto', function () {
   let trigger: YearnCrvTricrypto;
   let triggerParams: (string | number[])[] = []; // trigger params deployment parameters
 
+  // --- Functions modifying storage ---
   /**
    * @notice Change Yearn vault's price per share by modifying total supply (since share price is a getter method that
    * divides by total token supply)
@@ -27,8 +62,7 @@ describe('YearnCrvTricrypto', function () {
    */
   async function setYearnTotalSupply(supply: BigNumberish) {
     const storageSlot = '0x5'; // storage slot 5 in Yearn vault contains total supply
-    const value = ethers.utils.hexZeroPad(BN(supply).toHexString(), 32);
-    await network.provider.send('hardhat_setStorageAt', [yearnVaultAddress, storageSlot, value]);
+    await network.provider.send('hardhat_setStorageAt', [yearnVaultAddress, storageSlot, to32ByteHex(supply)]);
   }
 
   /**
@@ -39,8 +73,29 @@ describe('YearnCrvTricrypto', function () {
    */
   async function setCrvTotalSupply(supply: BigNumberish) {
     const storageSlot = '0x4'; // storage slot 4 is Curve token total supply
-    const value = ethers.utils.hexZeroPad(BN(supply).toHexString(), 32);
-    await network.provider.send('hardhat_setStorageAt', [curveTokenAddress, storageSlot, value]);
+    await network.provider.send('hardhat_setStorageAt', [curveTokenAddress, storageSlot, to32ByteHex(supply)]);
+  }
+
+  /**
+   * @notice Modify the balance of a token in the Curve pool
+   * @param token Token symbol
+   * @param balance New balance to set
+   */
+  async function modifyCrvBalance(token: keyof typeof tokenBalanceOfSlots, numerator: bigint, denominator: bigint) {
+    const value = ((await balanceOf(token, curveTricryptoAddress)) * numerator) / denominator;
+    const tokenAddress = tokenAddresses[token];
+    if (!tokenAddress) throw new Error('Invalid token selection');
+    const mappingSlot = tokenBalanceOfSlots[token];
+    const storageSlot = getStorageSlot(mappingSlot, curveTricryptoAddress);
+    await network.provider.send('hardhat_setStorageAt', [tokenAddress, storageSlot, to32ByteHex(value)]);
+  }
+
+  // --- Test fixture ---
+
+  // Executes checkAndToggleTrigger and verifies the expected state
+  async function assertTriggerStatus(status: boolean) {
+    await trigger.checkAndToggleTrigger();
+    expect(await trigger.isTriggered()).to.equal(status);
   }
 
   /**
@@ -74,6 +129,7 @@ describe('YearnCrvTricrypto', function () {
     return { deployer, yCrvTricrypto, crvTricrypto, crvToken, trigger, triggerParams };
   }
 
+  // --- Tests ---
   beforeEach(async () => {
     ({ deployer, yCrvTricrypto, crvTricrypto, crvToken, trigger, triggerParams } = await loadFixture(setupFixture));
   });
@@ -156,13 +212,7 @@ describe('YearnCrvTricrypto', function () {
         expect(await yCrvTricrypto.pricePerShare()).to.be.below(newPricePerShare + 2n);
       }
 
-      // Executes checkAndToggleTrigger and verifies the expected state
-      async function assertTriggerStatus(status: boolean) {
-        await trigger.checkAndToggleTrigger();
-        expect(await trigger.isTriggered()).to.equal(status);
-      }
-
-      // Read the trigger's tolerance (which is stored as percentage with 18 decimals such that 1e18 = 100%)
+      // Read the trigger's tolerance
       const tolerance = (await trigger.vaultTol()).toBigInt();
 
       // Increase share price to a larger value, should NOT be triggered (sanity check)
@@ -195,13 +245,7 @@ describe('YearnCrvTricrypto', function () {
         expect(await crvTricrypto.get_virtual_price()).to.be.below(newVirtualPrice + 2n);
       }
 
-      // Executes checkAndToggleTrigger and verifies the expected state
-      async function assertTriggerStatus(status: boolean) {
-        await trigger.checkAndToggleTrigger();
-        expect(await trigger.isTriggered()).to.equal(status);
-      }
-
-      // Read the trigger's tolerance (which is stored as percentage with 18 decimals such that 1e18 = 100%)
+      // Read the trigger's tolerance
       const tolerance = (await trigger.virtualPriceTol()).toBigInt();
 
       // Increase virtual price to a larger value, should NOT be triggered (sanity check)
@@ -218,6 +262,69 @@ describe('YearnCrvTricrypto', function () {
 
       // Decrease virtual price by an amount more than tolerance, should be triggered
       await modifyLastVirtualPrice(tolerance - 1n, 1000n);
+      await assertTriggerStatus(true);
+    });
+
+    it('properly accounts for USDT balance being drained', async () => {
+      const token = 'usdt';
+      const tolerance = (await trigger.balanceTol()).toBigInt();
+
+      // Increase balance to a larger value, should NOT be triggered (sanity check)
+      await modifyCrvBalance(token, 101n, 100n); // 1% increase
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount less than tolerance, should NOT be triggered
+      await modifyCrvBalance(token, 99n, 100n); // 1% decrease
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
+      await modifyCrvBalance(token, tolerance, 1000n);
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount more than tolerance, should be triggered
+      await modifyCrvBalance(token, tolerance - 1n, 1000n);
+      await assertTriggerStatus(true);
+    });
+
+    it('properly accounts for WBTC balance being drained', async () => {
+      const token = 'wbtc';
+      const tolerance = (await trigger.balanceTol()).toBigInt();
+
+      // Increase balance to a larger value, should NOT be triggered (sanity check)
+      await modifyCrvBalance(token, 101n, 100n); // 1% increase
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount less than tolerance, should NOT be triggered
+      await modifyCrvBalance(token, 99n, 100n); // 1% decrease
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
+      await modifyCrvBalance(token, tolerance, 1000n);
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount more than tolerance, should be triggered
+      await modifyCrvBalance(token, tolerance - 1n, 1000n);
+      await assertTriggerStatus(true);
+    });
+
+    it('properly accounts for WETH balance being drained', async () => {
+      const token = 'weth';
+      const tolerance = (await trigger.balanceTol()).toBigInt();
+
+      // Increase balance to a larger value, should NOT be triggered (sanity check)
+      await modifyCrvBalance(token, 101n, 100n); // 1% increase
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount less than tolerance, should NOT be triggered
+      await modifyCrvBalance(token, 99n, 100n); // 1% decrease
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
+      await modifyCrvBalance(token, tolerance, 1000n);
+      await assertTriggerStatus(false);
+
+      // Decrease balance by an amount more than tolerance, should be triggered
+      await modifyCrvBalance(token, tolerance - 1n, 1000n);
       await assertTriggerStatus(true);
     });
   });
