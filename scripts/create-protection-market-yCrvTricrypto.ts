@@ -18,7 +18,7 @@ const { AddressZero } = hre.ethers.constants;
 // STEP 1: TRIGGER CONTRACT SETUP
 const name = 'Yearn Curve Tricrypto Trigger'; // name
 const symbol = 'yCRV-TRICRYPTO-TRIG'; // symbol
-const description = 'Triggers when the Yearn vault share price decreases, or the Curve Tricrypto pool fails'; // description
+const description = 'Triggers when the Yearn vault share price falls by 50% or greater, the Tricrypto pool virtual price falls by 50% or greater, or the internal balances tracked in the Tricrypto pool are lower than the true balances'; // prettier-ignore
 const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0x1234567890AbcdEF1234567890aBcdef12345678'; // subsidy recipient
 const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
