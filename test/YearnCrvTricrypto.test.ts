@@ -183,13 +183,13 @@ describe('YearnCrvTricrypto', function () {
     it('properly updates the saved state', async () => {
       // Update values
       await setYearnTotalSupply(10n ** 18n); // don't set them too high or trigger will toggle
-      const newPricePerShare = await yCrvTricrypto.pricePerShare();
       await setCrvTotalSupply(10n ** 18n);
-      const newVirtualPrice = await crvTricrypto.get_virtual_price();
 
       // Call checkAndToggleTrigger to simulate someone using the protocol
       await trigger.checkAndToggleTrigger();
       expect(await trigger.isTriggered()).to.be.false; // sanity check
+      const newPricePerShare = await yCrvTricrypto.pricePerShare();
+      const newVirtualPrice = await crvTricrypto.get_virtual_price();
 
       // Verify the new state
       const currentPricePerShare = await trigger.lastPricePerShare();
