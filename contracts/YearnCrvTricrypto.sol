@@ -112,9 +112,9 @@ contract YearnCrvTricrypto is ITrigger {
    * @return True if balances are out of tolerance and trigger should be toggled
    */
   function checkCurveBalances() internal view returns (bool) {
-    if (usdt.balanceOf(address(curve)) < ((curve.balances(usdtIndex) * virtualPriceTol) / scale)) return true;
-    if (wbtc.balanceOf(address(curve)) < ((curve.balances(wbtcIndex) * virtualPriceTol) / scale)) return true;
-    if (weth.balanceOf(address(curve)) < ((curve.balances(wethIndex) * virtualPriceTol) / scale)) return true;
-    return false;
+    return
+      (usdt.balanceOf(address(curve)) < ((curve.balances(usdtIndex) * virtualPriceTol) / scale)) ||
+      (wbtc.balanceOf(address(curve)) < ((curve.balances(wbtcIndex) * virtualPriceTol) / scale)) ||
+      (weth.balanceOf(address(curve)) < ((curve.balances(wethIndex) * virtualPriceTol) / scale));
   }
 }
