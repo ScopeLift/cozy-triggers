@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   // VERIFICATION
   // Verify the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
-  console.log('  Deploying protection market for:   Yearn');
+  console.log('  Deploying protection market for:   Yearn CrvTricrypto');
   console.log(`  Deployer address:                  ${signer.address}`);
   console.log(`  Deploying to network:              ${hre.network.name}`);
 
@@ -45,6 +45,25 @@ async function main(): Promise<void> {
     return;
   }
   logSuccess('Continuing with deployment...\n');
+
+  // DEPLOY INTEREST RATE MODEL
+  // Get instance of the Trigger ContractFactory with our signer attached
+  const irModelFactory: ContractFactory = await hre.ethers.getContractFactory('JumpRateModelV2', signer);
+
+  // Deploy the interest rate model, configured with the following parameters:
+  //   - 3% base borrow rate at zero utilization
+  //   - Linear increase from 3% to 9% borrow rate at 80% utilization
+  //   - Linear increase from 9% to 85% borrow rate at 100% utilization
+  const constructorArgs = [
+    '30000000000000000', // baseRatePerYear of 3% = 3e16
+    '60000000000000000', // multiplierPerYear of 6% = 6e16 gives 9% borrow rate at kink
+    '3800000000000000000', // jumpMultiplierPerYear of 3.8% = 3.8e18 gives 85% borrow rate at 100% utilization
+    '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
+    '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
+  ];
+  const irModel: Contract = await irModelFactory.deploy(...constructorArgs);
+  await irModel.deployed();
+  logSuccess(`Interest rate model deployed to ${irModel.address}`);
 
   // DEPLOY TRIGGER
   // Get instance of the Trigger ContractFactory with our signer attached
@@ -76,7 +95,12 @@ async function main(): Promise<void> {
   // DEPLOY PROTECTION MARKET
   // If we're here, a ETH Money Market exists, so it's safe to create our new Protection Market
   const overrides = { gasPrice: await getGasPrice() };
-  const tx = await comptroller['deployProtectionMarket(address,address)'](ethAddress, trigger.address, overrides);
+  const tx = await comptroller['deployProtectionMarket(address,address,address)'](
+    ethAddress,
+    trigger.address,
+    irModel.address,
+    overrides
+  );
   console.log(`Creating Protection Market in transaction ${tx.hash}`);
 
   // This should emit a ProtectionMarketListed event on success, so let's check for that event. If not found, this
