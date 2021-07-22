@@ -63,20 +63,18 @@ const config: HardhatUserConfig = {
     timeout: 0,
   },
   solidity: {
-    version: '0.8.5',
-    settings: {
-      metadata: {
-        // Not including the metadata hash
-        // https://github.com/paulrberg/solidity-template/issues/31
-        bytecodeHash: 'none',
+    compilers: [
+      {
+        // Used for triggers
+        version: '0.8.5',
+        settings: { metadata: { bytecodeHash: 'none' }, optimizer: { enabled: true, runs: 999999 } },
       },
-      // You should disable the optimizer when debugging
-      // https://hardhat.org/hardhat-network/#solidity-optimizer-support
-      optimizer: {
-        enabled: true,
-        runs: 999999,
+      {
+        // Used for interest rate models
+        version: '0.5.17',
+        settings: { optimizer: { enabled: true, runs: 999999 } }, // no bytecodeHash setting in this version
       },
-    },
+    ],
   },
   typechain: {
     outDir: 'typechain',
