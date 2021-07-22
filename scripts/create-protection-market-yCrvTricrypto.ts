@@ -56,8 +56,8 @@ async function main(): Promise<void> {
   //   - Linear increase from 9% to 85% borrow rate at 100% utilization
   const constructorArgs = [
     '30000000000000000', // baseRatePerYear of 3% = 3e16
-    '60000000000000000', // multiplierPerYear of 6% = 6e16 gives 9% borrow rate at kink
-    '3800000000000000000', // jumpMultiplierPerYear of 3.8% = 3.8e18 gives 85% borrow rate at 100% utilization
+    '120000000000000000', // multiplierPerYear of 12% = 1.2e17 gives 15% borrow rate at kink
+    '3500000000000000000', // jumpMultiplierPerYear of 3.5% = 3.5e18 gives 85% borrow rate at 100% utilization
     '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
     '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
   ];
