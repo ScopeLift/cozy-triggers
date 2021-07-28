@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import type { BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, IYVaultV2, ICrvTricrypto, YearnCrvTwoTokens, IERC20 } from '../typechain';
+import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrvTwoTokens, IERC20 } from '../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -76,7 +76,7 @@ vaults.forEach((vault) => {
   describe(`Yearn Vault: ${vault.name}`, function () {
     // --- Data ---
     let yCrvTricrypto: IYVaultV2;
-    let crvTricrypto: ICrvTricrypto;
+    let crvTricrypto: ICurvePool;
     let crvToken: IERC20;
     let deployer: SignerWithAddress;
     let trigger: YearnCrvTwoTokens;
@@ -137,7 +137,7 @@ vaults.forEach((vault) => {
 
       // Get mainnet contract instances
       const yCrvTricrypto = <IYVaultV2>await ethers.getContractAt('IYVaultV2', vault.yearnVault);
-      const crvTricrypto = <ICrvTricrypto>await ethers.getContractAt('ICrvTricrypto', vault.curvePool);
+      const crvTricrypto = <ICurvePool>await ethers.getContractAt('ICurvePool', vault.curvePool);
       const crvToken = <IERC20>await ethers.getContractAt('IERC20', vault.curveToken);
 
       // Deploy YearnCrvTwoTokens trigger

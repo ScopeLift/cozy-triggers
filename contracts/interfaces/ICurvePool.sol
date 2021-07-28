@@ -1,6 +1,6 @@
 pragma solidity ^0.8.5;
 
-interface ICrvTricrypto {
+interface ICurvePool {
   /// @notice Computes current virtual price
   function get_virtual_price() external view returns (uint256);
 
@@ -18,4 +18,7 @@ interface ICrvTricrypto {
 
   /// @notice Pool admin fee
   function balances(uint256 index) external view returns (uint256);
+
+  /// @notice Returns the address of the token for the provided index
+  function coins(uint256 index) external view returns (address);
 }

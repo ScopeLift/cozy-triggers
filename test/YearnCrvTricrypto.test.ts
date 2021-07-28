@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import type { BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, IYVaultV2, ICrvTricrypto, YearnCrvTricrypto, IERC20 } from '../typechain';
+import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrvTricrypto, IERC20 } from '../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -47,7 +47,7 @@ async function balanceOf(token: keyof typeof tokenBalanceOfSlots, address: strin
 describe('YearnCrvTricrypto', function () {
   // --- Data ---
   let yCrvTricrypto: IYVaultV2;
-  let crvTricrypto: ICrvTricrypto;
+  let crvTricrypto: ICurvePool;
   let crvToken: IERC20;
   let deployer: SignerWithAddress;
   let trigger: YearnCrvTricrypto;
@@ -109,7 +109,7 @@ describe('YearnCrvTricrypto', function () {
 
     // Get mainnet contract instances
     const yCrvTricrypto = <IYVaultV2>await ethers.getContractAt('IYVaultV2', yearnVaultAddress);
-    const crvTricrypto = <ICrvTricrypto>await ethers.getContractAt('ICrvTricrypto', curveTricryptoAddress);
+    const crvTricrypto = <ICurvePool>await ethers.getContractAt('ICurvePool', curveTricryptoAddress);
     const crvToken = <IERC20>await ethers.getContractAt('IERC20', curveTokenAddress);
 
     // Deploy YearnCrvTricrypto trigger
