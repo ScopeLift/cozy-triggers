@@ -23,8 +23,6 @@ const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
 const yearnVaultAddress = '0x23D3D0f1c697247d5e0a9efB37d8b0ED0C464f7f'; // mainnet Yearn v2 vault
 const curvePoolAddress = '0xC25099792E9349C7DD09759744ea681C7de2cb66'; // mainnet Curve pool
-const token0 = '0x8dAEBADE922dF735c38C80C7eBD708Af50815fAa'; // tBTC
-const token1 = '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3'; // crvRenWSBTC
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
 // For this step, see the ITrigger.sol and MockTrigger.sol examples and the corresponding documentation
@@ -75,17 +73,7 @@ async function main(): Promise<void> {
   const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrvTwoTokens', signer);
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
-  const triggerParams = [
-    name,
-    symbol,
-    description,
-    platformIds,
-    recipient,
-    yearnVaultAddress,
-    curvePoolAddress,
-    token0,
-    token1,
-  ];
+  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curvePoolAddress];
   const trigger: Contract = await triggerFactory.deploy(...triggerParams);
   await trigger.deployed();
   logSuccess(`YearnCrvTwoTokens trigger deployed to ${trigger.address}`);

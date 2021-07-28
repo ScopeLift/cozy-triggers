@@ -19,10 +19,6 @@ contract YearnCrvTwoTokens is ITrigger {
   IERC20 internal immutable token0;
   IERC20 internal immutable token1;
 
-  // Token indices in Curve pool arrays
-  uint256 internal constant token0Index = 0;
-  uint256 internal constant token1Index = 1;
-
   // --- Tolerances ---
   /// @dev Scale used to define percentages. Percentages are defined as tolerance / scale
   uint256 public constant scale = 1000;
@@ -60,8 +56,6 @@ contract YearnCrvTwoTokens is ITrigger {
   /**
    * @param _vault Address of the Yearn V2 vault this trigger should protect
    * @param _curve Address of the Curve Tricrypto pool uses by the above Yearn vault
-   * @param _token0 Address of token0 in the Curve pool
-   * @param _token1 Address of token1 in the Curve pool
    * @dev For definitions of other constructor parameters, see ITrigger.sol
    */
   constructor(
@@ -71,15 +65,13 @@ contract YearnCrvTwoTokens is ITrigger {
     uint256[] memory _platformIds,
     address _recipient,
     address _vault,
-    address _curve,
-    IERC20 _token0,
-    IERC20 _token1
+    address _curve
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
     // Set trigger data
     vault = IYVaultV2(_vault);
     curve = ICurvePool(_curve);
-    token0 = _token0;
-    token1 = _token1;
+    token0 = IERC20(ICurvePool(_curve).coins(0));
+    token1 = IERC20(ICurvePool(_curve).coins(1));
 
     // Save current values (immutables can't be read at construction, so we don't use `vault` or `curve` directly)
     lastPricePerShare = IYVaultV2(_vault).pricePerShare();
@@ -116,7 +108,7 @@ contract YearnCrvTwoTokens is ITrigger {
    */
   function checkCurveBalances() internal view returns (bool) {
     return
-      (token0.balanceOf(address(curve)) < ((curve.balances(token0Index) * virtualPriceTol) / scale)) ||
-      (token1.balanceOf(address(curve)) < ((curve.balances(token1Index) * virtualPriceTol) / scale));
+      (token0.balanceOf(address(curve)) < ((curve.balances(0) * virtualPriceTol) / scale)) ||
+      (token1.balanceOf(address(curve)) < ((curve.balances(1) * virtualPriceTol) / scale));
   }
 }

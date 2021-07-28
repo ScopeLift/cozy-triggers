@@ -33,4 +33,10 @@ contract MockCrvTricrypto is ICurvePool {
     require(index == 0 || index == 1 || index == 2, "bad index");
     return 1;
   }
+
+  function coins(uint256 index) external pure override returns (address) {
+    // This method is not used and is just to satisfy the interface this contract inherits from
+    index; // silence compiler warning about unused variables
+    return address(0);
+  }
 }
