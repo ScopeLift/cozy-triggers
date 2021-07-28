@@ -15,13 +15,17 @@ const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
 
 // Mainnet token addresses
 const tokenAddresses = {
-  usdt: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-  wbtc: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
-  weth: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+  tbtc: '0x8dAEBADE922dF735c38C80C7eBD708Af50815fAa',
+  crvRenWSBTC: '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3',
+};
+
+// Define methods needed to calculate balanceOf storage slots for each token
+const balanceOfSlots = {
+  tbtc: (address: string) => getSolidityStorageSlot('0x3', address),
+  crvRenWSBTC: (address: string) => getVyperStorageSlot('0x3', address),
 };
 
 type CurveUnderlying = keyof typeof tokenAddresses;
-
 interface VaultInfo {
   name: string;
   yearnVault: string;
@@ -33,32 +37,33 @@ interface VaultInfo {
 // Yearn Vault / Curve Pool pairings to test
 const vaults: VaultInfo[] = [
   {
-    name: 'crvTricrypto',
-    yearnVault: '0x3D980E50508CFd41a13837A60149927a11c03731',
-    curvePool: '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46',
-    curveToken: '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff',
-    curvePoolTokens: ['usdt', 'wbtc', 'weth'],
+    name: 'crvTBTC',
+    yearnVault: '0x23D3D0f1c697247d5e0a9efB37d8b0ED0C464f7f',
+    curvePool: '0xC25099792E9349C7DD09759744ea681C7de2cb66',
+    curveToken: '0x64eda51d3Ad40D56b9dFc5554E06F94e1Dd786Fd',
+    curvePoolTokens: ['tbtc', 'crvRenWSBTC'],
   },
 ];
 
-// const vault.yearnVault = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
-// const vault.curvePool = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
-// const vault.curveToken = '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff'; // Curve Tricrypto pool token
+// --- Storage slot helper methods ---
+// `defaultAbiCoder.encode` is equivalent to Solidity's `abi.encode()`, and we strip leading zeros from the hashed
+// value to conform to the JSON-RPC spec: https://ethereum.org/en/developers/docs/apis/json-rpc/#hex-value-encoding
 
-// Define the balanceOf mapping slot number to use for finding the slot used to store balance of a given address
-const tokenBalanceOfSlots = { usdt: '0x2', wbtc: '0x0', weth: '0x3' };
-
-// --- Helper methods ---
-// Returns the storage slot for a mapping from an `address` to a value, given the slot of the mapping itself, `mappingSlot`
-// Read more at https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html#mappings-and-dynamic-arrays
-const getStorageSlot = (mappingSlot: string, address: string) => {
-  // `defaultAbiCoder.encode` is equivalent to Solidity's `abi.encode()`, and we strip leading zeros from the hashed
-  // value to conform to the JSON-RPC spec: https://ethereum.org/en/developers/docs/apis/json-rpc/#hex-value-encoding
+// Returns the storage slot for a Solidity mapping from an `address` to a value, given the slot of the mapping itself,
+//  `mappingSlot`. Read more at https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html#mappings-and-dynamic-arrays
+const getSolidityStorageSlot = (mappingSlot: string, address: string) => {
   return hexStripZeros(keccak256(defaultAbiCoder.encode(['address', 'uint256'], [address, mappingSlot])));
 };
 
+// Returns the storage slot for a Vyper mapping from an `address` to a value, given the slot of the mapping itself,
+//  `mappingSlot`. May be dependent on the Vyper version used. See this tweet thread for more info: https://twitter.com/msolomon44/status/1420137730009300992
+const getVyperStorageSlot = (mappingSlot: string, address: string) => {
+  return hexStripZeros(keccak256(defaultAbiCoder.encode(['uint256', 'address'], [mappingSlot, address])));
+};
+
+// --- Generic helper methods ---
 // Gets token balance
-async function balanceOf(token: CurveUnderlying, address: string) {
+async function balanceOf(token: CurveUnderlying, address: string): Promise<bigint> {
   const tokenAddress = tokenAddresses[token];
   if (!tokenAddress) throw new Error('Invalid token selection');
   const abi = ['function balanceOf(address) external view returns (uint256)'];
@@ -66,8 +71,9 @@ async function balanceOf(token: CurveUnderlying, address: string) {
   return (await contract.balanceOf(address)).toBigInt();
 }
 
+// --- Tests ---
 vaults.forEach((vault) => {
-  describe.only(`Yearn Vault: ${vault.name}`, function () {
+  describe(`Yearn Vault: ${vault.name}`, function () {
     // --- Data ---
     let yCrvTricrypto: IYVaultV2;
     let crvTricrypto: ICrvTricrypto;
@@ -84,7 +90,7 @@ vaults.forEach((vault) => {
      * shares, making price per share effectively 0
      */
     async function setYearnTotalSupply(supply: BigNumberish) {
-      const storageSlot = '0x5'; // storage slot 5 in Yearn vault contains total supply
+      const storageSlot = '0x6'; // storage slot 5 in Yearn vault contains total supply
       await network.provider.send('hardhat_setStorageAt', [vault.yearnVault, storageSlot, to32ByteHex(supply)]);
     }
 
@@ -95,7 +101,7 @@ vaults.forEach((vault) => {
      * shares, making price per share effectively 0
      */
     async function setCrvTotalSupply(supply: BigNumberish) {
-      const storageSlot = '0x4'; // storage slot 4 is Curve token total supply
+      const storageSlot = '0x5'; // storage slot 4 is Curve token total supply
       await network.provider.send('hardhat_setStorageAt', [vault.curveToken, storageSlot, to32ByteHex(supply)]);
     }
 
@@ -108,8 +114,7 @@ vaults.forEach((vault) => {
       const value = ((await balanceOf(token, vault.curvePool)) * numerator) / denominator;
       const tokenAddress = tokenAddresses[token];
       if (!tokenAddress) throw new Error('Invalid token selection');
-      const mappingSlot = tokenBalanceOfSlots[token];
-      const storageSlot = getStorageSlot(mappingSlot, vault.curvePool);
+      const storageSlot = balanceOfSlots[token](vault.curvePool);
       await network.provider.send('hardhat_setStorageAt', [tokenAddress, storageSlot, to32ByteHex(value)]);
     }
 
@@ -144,6 +149,8 @@ vaults.forEach((vault) => {
         recipient.address, // subsidy recipient
         vault.yearnVault, // mainnet Yearn crvTricrypto vault
         vault.curvePool, // mainnet Curve Tricrypto pool
+        tokenAddresses[vault.curvePoolTokens[0]],
+        tokenAddresses[vault.curvePoolTokens[1]],
       ];
 
       const YearnCrvTwoTokensArtifact = await artifacts.readArtifact('YearnCrvTwoTokens');
@@ -168,7 +175,7 @@ vaults.forEach((vault) => {
         expect(await trigger.vault()).to.equal(triggerParams[5]);
         expect(await trigger.curve()).to.equal(triggerParams[6]);
         expect(await trigger.vaultTol()).to.equal('500');
-        expect(await trigger.virtualPriceTol()).to.equal('490');
+        expect(await trigger.virtualPriceTol()).to.equal('500');
       });
     });
 
@@ -301,7 +308,9 @@ vaults.forEach((vault) => {
           await assertTriggerStatus(false);
 
           // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
-          await modifyCrvBalance(tokenSymbol, tolerance, 1000n);
+          // We add 1 to tolerance to prevent triggering here if balance is an odd number. For example if
+          // balance = 11, this will set the balance to 11 // 2 = 5, which will trigger because it's below 5.5
+          await modifyCrvBalance(tokenSymbol, tolerance + 1n, 1000n);
           await assertTriggerStatus(false);
 
           // Decrease balance by an amount more than tolerance, should be triggered

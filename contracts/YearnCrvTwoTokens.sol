@@ -16,14 +16,12 @@ import "./interfaces/IYVaultV2.sol";
 contract YearnCrvTwoTokens is ITrigger {
   // --- Tokens ---
   // Token addresses
-  IERC20 internal constant usdt = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
-  IERC20 internal constant wbtc = IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
-  IERC20 internal constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+  IERC20 internal immutable token0;
+  IERC20 internal immutable token1;
 
   // Token indices in Curve pool arrays
-  uint256 internal constant usdtIndex = 0;
-  uint256 internal constant wbtcIndex = 1;
-  uint256 internal constant wethIndex = 2;
+  uint256 internal constant token0Index = 0;
+  uint256 internal constant token1Index = 1;
 
   // --- Tolerances ---
   /// @dev Scale used to define percentages. Percentages are defined as tolerance / scale
@@ -38,10 +36,8 @@ contract YearnCrvTwoTokens is ITrigger {
   /// if you want to trigger after a 20% drop, you should set the tolerance to 1000 - 200 = 800
   uint256 public constant vaultTol = scale - 500; // 50% drop, represented on a scale where 1000 = 100%
 
-  /// @dev Consider trigger toggled if Curve virtual price drops by this percentage. Similar to the Yearn V2 price
-  /// per share, the virtual price is expected to decrease during normal operation, but it can never decrease by
-  /// more than 50% during normal operation. Therefore we check for a 51% drop
-  uint256 public constant virtualPriceTol = scale - 510; // 51% drop, since 1000-510=490, and multiplying by 0.49 = 51% drop
+  /// @dev Consider trigger toggled if Curve virtual price drops by more than this percentage.
+  uint256 public constant virtualPriceTol = scale - 500; // 50% drop
 
   /// @dev Consider trigger toggled if Curve internal balances are lower than true balances by this percentage
   uint256 public constant balanceTol = scale - 500; // 50% drop
@@ -64,6 +60,8 @@ contract YearnCrvTwoTokens is ITrigger {
   /**
    * @param _vault Address of the Yearn V2 vault this trigger should protect
    * @param _curve Address of the Curve Tricrypto pool uses by the above Yearn vault
+   * @param _token0 Address of token0 in the Curve pool
+   * @param _token1 Address of token1 in the Curve pool
    * @dev For definitions of other constructor parameters, see ITrigger.sol
    */
   constructor(
@@ -73,11 +71,15 @@ contract YearnCrvTwoTokens is ITrigger {
     uint256[] memory _platformIds,
     address _recipient,
     address _vault,
-    address _curve
+    address _curve,
+    IERC20 _token0,
+    IERC20 _token1
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
-    // Set vault
+    // Set trigger data
     vault = IYVaultV2(_vault);
     curve = ICrvTricrypto(_curve);
+    token0 = _token0;
+    token1 = _token1;
 
     // Save current values (immutables can't be read at construction, so we don't use `vault` or `curve` directly)
     lastPricePerShare = IYVaultV2(_vault).pricePerShare();
@@ -114,8 +116,7 @@ contract YearnCrvTwoTokens is ITrigger {
    */
   function checkCurveBalances() internal view returns (bool) {
     return
-      (usdt.balanceOf(address(curve)) < ((curve.balances(usdtIndex) * virtualPriceTol) / scale)) ||
-      (wbtc.balanceOf(address(curve)) < ((curve.balances(wbtcIndex) * virtualPriceTol) / scale)) ||
-      (weth.balanceOf(address(curve)) < ((curve.balances(wethIndex) * virtualPriceTol) / scale));
+      (token0.balanceOf(address(curve)) < ((curve.balances(token0Index) * virtualPriceTol) / scale)) ||
+      (token1.balanceOf(address(curve)) < ((curve.balances(token1Index) * virtualPriceTol) / scale));
   }
 }
