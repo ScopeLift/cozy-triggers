@@ -4,7 +4,7 @@
 
 import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
-import { Contract, ContractFactory } from 'ethers';
+import { Contract, ContractFactory, utils } from 'ethers';
 import chalk from 'chalk';
 import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
 import comptrollerAbi from '../abi/Comptroller.json';
@@ -20,7 +20,7 @@ const name = 'Yearn Curve Tricrypto Trigger'; // name
 const symbol = 'yCRV-TRICRYPTO-TRIG'; // symbol
 const description = 'Triggers when the Yearn vault share price falls by over 50%, the Tricrypto pool virtual price falls by over 50%, or the internal balances tracked in the Tricrypto pool are over 50% lower than the true balances'; // prettier-ignore
 const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
-const recipient = '0x1234567890AbcdEF1234567890aBcdef12345678'; // subsidy recipient
+const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
 const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
 const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
 
@@ -29,6 +29,8 @@ const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // m
 
 // STEP 3: PROTECTION MARKET DEPLOYMENT
 async function main(): Promise<void> {
+  if (!utils.isAddress(recipient)) throw new Error('\n\n**** Please set the recipient address on line 23 ****\n');
+
   // Compile contracts to make sure we're using the latest version of the trigger contracts
   await hre.run('compile');
 
