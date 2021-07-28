@@ -149,8 +149,6 @@ vaults.forEach((vault) => {
         recipient.address, // subsidy recipient
         vault.yearnVault, // mainnet Yearn crvTricrypto vault
         vault.curvePool, // mainnet Curve Tricrypto pool
-        tokenAddresses[vault.curvePoolTokens[0]],
-        tokenAddresses[vault.curvePoolTokens[1]],
       ];
 
       const YearnCrvTwoTokensArtifact = await artifacts.readArtifact('YearnCrvTwoTokens');
