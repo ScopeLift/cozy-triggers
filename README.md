@@ -5,6 +5,7 @@
 - `CompoundExchangeRate`: Triggers if a Compound market's `exchangeRateStored` drops between consecutive blocks
 - `YearnSharePrice`: Triggers if a Yearn vault's `pricePerShare` drops between consecutive blocks
 - `YearnCrvTricrypto`: Triggers if the Yearn crvTricrypto vault's `pricePerShare` drops between consecutive blocks, or the Tricrypto pool fails
+- `YearnCrvTwoTokens`: Triggers when the Yearn vault `pricePerShare` falls by over 50%, the underlying Curve pool's virtual price falls by over 50%, or the internal balances tracked in the Curve pool are over 50% lower than the true balances
 
 ## Development and Deployment
 
