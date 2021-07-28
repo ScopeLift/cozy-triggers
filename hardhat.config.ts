@@ -66,7 +66,7 @@ const config: HardhatUserConfig = {
     compilers: [
       {
         // Used for triggers
-        version: '0.8.5',
+        version: '0.8.6',
         settings: { metadata: { bytecodeHash: 'none' }, optimizer: { enabled: true, runs: 999999 } },
       },
       {

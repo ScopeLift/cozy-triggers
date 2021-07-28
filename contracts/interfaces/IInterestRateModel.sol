@@ -1,4 +1,4 @@
-pragma solidity 0.8.5;
+pragma solidity ^0.8.5;
 
 /**
  * @notice Abstract contract for interest rate models
