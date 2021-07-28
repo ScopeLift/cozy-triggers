@@ -1,11 +1,11 @@
 pragma solidity ^0.8.5;
 
-import "../interfaces/ICrvTricrypto.sol";
+import "../interfaces/ICurvePool.sol";
 
 /**
  * @notice Mock Curve Tricrypto pool, containing the same interface but configurable parameters for testing
  */
-contract MockCrvTricrypto is ICrvTricrypto {
+contract MockCrvTricrypto is ICurvePool {
   uint256 public override get_virtual_price;
   uint256 public override virtual_price;
   uint256 public override xcp_profit;

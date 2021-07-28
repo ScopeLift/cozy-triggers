@@ -1,6 +1,6 @@
 pragma solidity ^0.8.6;
 
-import "./interfaces/ICrvTricrypto.sol";
+import "./interfaces/ICurvePool.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/ITrigger.sol";
 import "./interfaces/IYVaultV2.sol";
@@ -47,7 +47,7 @@ contract YearnCrvTwoTokens is ITrigger {
   IYVaultV2 public immutable vault;
 
   /// @notice Curve tricrypto pool used as a strategy by `vault`
-  ICrvTricrypto public immutable curve;
+  ICurvePool public immutable curve;
 
   /// @notice Last read pricePerShare
   uint256 public lastPricePerShare;
@@ -77,13 +77,13 @@ contract YearnCrvTwoTokens is ITrigger {
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
     // Set trigger data
     vault = IYVaultV2(_vault);
-    curve = ICrvTricrypto(_curve);
+    curve = ICurvePool(_curve);
     token0 = _token0;
     token1 = _token1;
 
     // Save current values (immutables can't be read at construction, so we don't use `vault` or `curve` directly)
     lastPricePerShare = IYVaultV2(_vault).pricePerShare();
-    lastVirtualPrice = ICrvTricrypto(_curve).get_virtual_price();
+    lastVirtualPrice = ICurvePool(_curve).get_virtual_price();
   }
 
   // --- Trigger condition ---
