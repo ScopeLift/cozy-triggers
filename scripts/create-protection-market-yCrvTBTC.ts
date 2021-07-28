@@ -18,7 +18,7 @@ const { AddressZero } = hre.ethers.constants;
 // STEP 1: TRIGGER CONTRACT SETUP
 const name = 'Yearn V2 Curve TBTC Trigger'; // name
 const symbol = 'yCrvTBTC-TRIG'; // symbol
-const description = "Triggers when the Yearn vault share price falls by over 50%, the Curve tBTC pool's virtual price falls by over 50%, or the internal balances tracked in the Curve tBTC pool are over 50% lower than the true balances"; // prettier-ignore
+const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve tBTC pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve tBTC pool are more than 50% lower than the true balances"; // prettier-ignore
 const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
 const yearnVaultAddress = '0x23D3D0f1c697247d5e0a9efB37d8b0ED0C464f7f'; // mainnet Yearn v2 vault
