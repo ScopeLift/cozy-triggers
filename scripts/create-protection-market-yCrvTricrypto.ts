@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   const constructorArgs = [
     '30000000000000000', // baseRatePerYear of 3% = 3e16
     '120000000000000000', // multiplierPerYear of 12% = 1.2e17 gives 15% borrow rate at kink
-    '3500000000000000000', // jumpMultiplierPerYear of 3.5% = 3.5e18 gives 85% borrow rate at 100% utilization
+    '3500000000000000000', // jumpMultiplierPerYear of 350% = 3.5e18 gives 85% borrow rate at 100% utilization
     '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
     '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
   ];
