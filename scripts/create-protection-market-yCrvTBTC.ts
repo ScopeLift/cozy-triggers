@@ -6,7 +6,7 @@ import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
 import { Contract, ContractFactory, utils } from 'ethers';
 import chalk from 'chalk';
-import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput, fundAccount } from '../utils/utils'; // prettier-ignore
+import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
 import comptrollerAbi from '../abi/Comptroller.json';
 
 // STEP 0: ENVIRONMENT SETUP
@@ -32,7 +32,6 @@ async function main(): Promise<void> {
   if (!utils.isAddress(recipient)) throw new Error('\n\n**** Please set the recipient address on line 23 ****\n');
 
   // Compile contracts to make sure we're using the latest version of the trigger contracts
-  await fundAccount('0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', '5', signer.address, hre);
   await hre.run('compile');
 
   // VERIFICATION
