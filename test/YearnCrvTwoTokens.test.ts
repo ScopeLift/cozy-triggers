@@ -17,12 +17,16 @@ const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
 const tokenAddresses = {
   tbtc: '0x8dAEBADE922dF735c38C80C7eBD708Af50815fAa',
   crvRenWSBTC: '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3',
+  usdn: '0x674C6Ad92Fd080e4004b2312b45f796a192D27a0',
+  '3crv': '0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490',
 };
 
 // Define methods needed to calculate balanceOf storage slots for each token
 const balanceOfSlots = {
   tbtc: (address: string) => getSolidityStorageSlot('0x3', address),
   crvRenWSBTC: (address: string) => getVyperStorageSlot('0x3', address),
+  usdn: (address: string) => getSolidityStorageSlot('0x7', address),
+  '3crv': (address: string) => getVyperStorageSlot('0x3', address),
 };
 
 type CurveUnderlying = keyof typeof tokenAddresses;
@@ -42,6 +46,13 @@ const vaults: VaultInfo[] = [
     curvePool: '0xC25099792E9349C7DD09759744ea681C7de2cb66',
     curveToken: '0x64eda51d3Ad40D56b9dFc5554E06F94e1Dd786Fd',
     curvePoolTokens: ['tbtc', 'crvRenWSBTC'],
+  },
+  {
+    name: 'crvUSDN',
+    yearnVault: '0x3B96d491f067912D18563d56858Ba7d6EC67a6fa',
+    curvePool: '0x0f9cb53Ebe405d49A0bbdBD291A65Ff571bC83e1',
+    curveToken: '0x4f3E8F405CF5aFC05D68142F3783bDfE13811522',
+    curvePoolTokens: ['usdn', '3crv'],
   },
 ];
 
