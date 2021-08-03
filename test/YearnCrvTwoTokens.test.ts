@@ -25,7 +25,7 @@ const tokenAddresses = {
 const balanceOfSlots = {
   tbtc: (address: string) => getSolidityStorageSlot('0x3', address),
   crvRenWSBTC: (address: string) => getVyperStorageSlot('0x3', address),
-  usdn: (address: string) => getSolidityStorageSlot('0x7', address),
+  usdn: (address: string) => getSolidityStorageSlot('0x5', address),
   '3crv': (address: string) => getVyperStorageSlot('0x3', address),
 };
 
