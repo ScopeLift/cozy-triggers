@@ -16,7 +16,7 @@ interface ICurvePool {
   /// @notice Pool admin fee
   function admin_fee() external view returns (uint256);
 
-  /// @notice Pool admin fee
+  /// @notice Returns balance for the token defined by the provided index
   function balances(uint256 index) external view returns (uint256);
 
   /// @notice Returns the address of the token for the provided index

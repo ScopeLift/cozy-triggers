@@ -113,8 +113,8 @@ contract YearnCrvTricrypto is ITrigger {
    */
   function checkCurveBalances() internal view returns (bool) {
     return
-      (usdt.balanceOf(address(curve)) < ((curve.balances(usdtIndex) * virtualPriceTol) / scale)) ||
-      (wbtc.balanceOf(address(curve)) < ((curve.balances(wbtcIndex) * virtualPriceTol) / scale)) ||
-      (weth.balanceOf(address(curve)) < ((curve.balances(wethIndex) * virtualPriceTol) / scale));
+      (usdt.balanceOf(address(curve)) < ((curve.balances(usdtIndex) * balanceTol) / scale)) ||
+      (wbtc.balanceOf(address(curve)) < ((curve.balances(wbtcIndex) * balanceTol) / scale)) ||
+      (weth.balanceOf(address(curve)) < ((curve.balances(wethIndex) * balanceTol) / scale));
   }
 }

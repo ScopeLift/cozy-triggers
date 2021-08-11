@@ -44,7 +44,7 @@ async function balanceOf(token: keyof typeof tokenBalanceOfSlots, address: strin
   return (await contract.balanceOf(address)).toBigInt();
 }
 
-describe('YearnCrvTricrypto', function () {
+describe.only('YearnCrvTricrypto', function () {
   // --- Data ---
   let yCrvTricrypto: IYVaultV2;
   let crvTricrypto: ICurvePool;
@@ -277,8 +277,9 @@ describe('YearnCrvTricrypto', function () {
       await modifyCrvBalance(token, 99n, 100n); // 1% decrease
       await assertTriggerStatus(false);
 
-      // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
-      await modifyCrvBalance(token, tolerance, 1000n);
+      // Decrease balance by an amount exactly slightly above tolerance, should NOT be triggered (we don't do
+      // exact to account for flooring on integer division when dividing an odd number in half)
+      await modifyCrvBalance(token, tolerance + 1n, 1000n);
       await assertTriggerStatus(false);
 
       // Decrease balance by an amount more than tolerance, should be triggered
@@ -298,8 +299,9 @@ describe('YearnCrvTricrypto', function () {
       await modifyCrvBalance(token, 99n, 100n); // 1% decrease
       await assertTriggerStatus(false);
 
-      // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
-      await modifyCrvBalance(token, tolerance, 1000n);
+      // Decrease balance by an amount exactly slightly above tolerance, should NOT be triggered (we don't do
+      // exact to account for flooring on integer division when dividing an odd number in half)
+      await modifyCrvBalance(token, tolerance + 1n, 1000n);
       await assertTriggerStatus(false);
 
       // Decrease balance by an amount more than tolerance, should be triggered
@@ -319,8 +321,9 @@ describe('YearnCrvTricrypto', function () {
       await modifyCrvBalance(token, 99n, 100n); // 1% decrease
       await assertTriggerStatus(false);
 
-      // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
-      await modifyCrvBalance(token, tolerance, 1000n);
+      // Decrease balance by an amount exactly slightly above tolerance, should NOT be triggered (we don't do
+      // exact to account for flooring on integer division when dividing an odd number in half)
+      await modifyCrvBalance(token, tolerance + 1n, 1000n);
       await assertTriggerStatus(false);
 
       // Decrease balance by an amount more than tolerance, should be triggered

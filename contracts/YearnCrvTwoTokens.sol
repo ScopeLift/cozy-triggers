@@ -108,7 +108,7 @@ contract YearnCrvTwoTokens is ITrigger {
    */
   function checkCurveBalances() internal view returns (bool) {
     return
-      (token0.balanceOf(address(curve)) < ((curve.balances(0) * virtualPriceTol) / scale)) ||
-      (token1.balanceOf(address(curve)) < ((curve.balances(1) * virtualPriceTol) / scale));
+      (token0.balanceOf(address(curve)) < ((curve.balances(0) * balanceTol) / scale)) ||
+      (token1.balanceOf(address(curve)) < ((curve.balances(1) * balanceTol) / scale));
   }
 }
