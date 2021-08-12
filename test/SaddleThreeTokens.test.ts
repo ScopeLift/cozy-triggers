@@ -83,7 +83,7 @@ pools.forEach((pool) => {
      * shares, making price per share effectively 0
      */
     async function setSaddleTotalSupply(supply: BigNumberish) {
-      const storageSlot = '0x35'; // storage slot 53 (0x35) is Saddle token total supply since this is a minimal proxy
+      const storageSlot = '0x35'; // storage slot 53 (0x35) is Saddle token total supply (starts late due to OpenZeppelin storage gap: https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps)
       await network.provider.send('hardhat_setStorageAt', [pool.saddleToken, storageSlot, to32ByteHex(supply)]);
     }
 
