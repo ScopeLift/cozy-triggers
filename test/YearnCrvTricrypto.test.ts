@@ -44,7 +44,7 @@ async function balanceOf(token: keyof typeof tokenBalanceOfSlots, address: strin
   return (await contract.balanceOf(address)).toBigInt();
 }
 
-describe.only('YearnCrvTricrypto', function () {
+describe('YearnCrvTricrypto', function () {
   // --- Data ---
   let yCrvTricrypto: IYVaultV2;
   let crvTricrypto: ICurvePool;
