@@ -47,8 +47,6 @@ const config: HardhatUserConfig = {
   defaultNetwork: 'hardhat',
   networks: {
     hardhat: {
-      hardfork: 'london',
-      gasPrice: 'auto',
       accounts: { mnemonic },
       chainId: chainIds.hardhat,
       forking: { url: rpcUrl },
