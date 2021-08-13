@@ -20,7 +20,7 @@ const name = 'Saddle alETH Trigger'; // name
 const symbol = 'saddlealETH-TRIG'; // symbol
 const description = "Triggers when the Saddle alETH pool virtual price decreases by more than 50% between consecutive checks, or when the internal balances tracked in the Saddle alETH pool are more than 50% lower than the true balances"; // prettier-ignore
 const platformIds = [7]; // platform ID for saddle
-const recipient = '0xa6018520EAACC06C30fF2e1B3ee2c7c22e64196a'; // subsidy recipient
+const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
 const saddlePoolAddress = '0xa6018520EAACC06C30fF2e1B3ee2c7c22e64196a'; // mainnet Saddle pool
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
