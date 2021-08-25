@@ -1,5 +1,5 @@
 /**
- * @notice Deploys the `YearnCrvTricrypto` trigger and creates a protection market
+ * @notice Deploys the `YearnCrv3Crypto` trigger and creates a protection market
  */
 
 import hre from 'hardhat';
@@ -16,13 +16,13 @@ const chainId = getChainId(hre);
 const { AddressZero } = hre.ethers.constants;
 
 // STEP 1: TRIGGER CONTRACT SETUP
-const name = 'Yearn Curve Tricrypto Trigger'; // name
-const symbol = 'yCRV-TRICRYPTO-TRIG'; // symbol
-const description = 'Triggers when the Yearn vault share price falls by over 50%, the Tricrypto pool virtual price falls by over 50%, or the internal balances tracked in the Tricrypto pool are over 50% lower than the true balances'; // prettier-ignore
+const name = 'Yearn Curve 3Crypto Trigger'; // name
+const symbol = 'yCRV-3CRYPTO-TRIG'; // symbol
+const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve 3Crypto pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve 3Crypto pool are more than 50% lower than the true balances"; // prettier-ignore
 const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
-const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
-const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
+const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crv3Crypto vault
+const curve3CryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve 3Crypto pool
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
 // For this step, see the ITrigger.sol and MockTrigger.sol examples and the corresponding documentation
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   // VERIFICATION
   // Verify the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
-  console.log('  Deploying protection market for:   Yearn CrvTricrypto');
+  console.log('  Deploying protection market for:   Yearn Crv3Crypto');
   console.log(`  Deployer address:                  ${signer.address}`);
   console.log(`  Deploying to network:              ${hre.network.name}`);
 
@@ -69,13 +69,13 @@ async function main(): Promise<void> {
 
   // DEPLOY TRIGGER
   // Get instance of the Trigger ContractFactory with our signer attached
-  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrvTricrypto', signer);
+  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrv3Crypto', signer);
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
-  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curveTricryptoAddress];
+  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curve3CryptoAddress];
   const trigger: Contract = await triggerFactory.deploy(...triggerParams);
   await trigger.deployed();
-  logSuccess(`YearnCrvTricrypto trigger deployed to ${trigger.address}`);
+  logSuccess(`YearnCrv3Crypto trigger deployed to ${trigger.address}`);
 
   // VERIFY UNDERLYING
   // Let's choose ETH as the underlying, so first we need to check if there's a ETH Money Market.
