@@ -9,10 +9,10 @@ import "./interfaces/IYVaultV2.sol";
  * @notice Defines a trigger that is toggled if any of the following conditions occur:
  *   1. The price per share for the V2 yVault significantly decreases between consecutive checks. Under normal
  *      operation, this value should only increase. A decrease indicates something is wrong with the Yearn vault
- *   2. Curve Tricrypto token balances are significantly lower than what the pool expects them to be
- *   3. Curve Tricrypto virtual price drops significantly
+ *   2. Curve 3Crypto token balances are significantly lower than what the pool expects them to be
+ *   3. Curve 3Crypto virtual price drops significantly
  */
-contract YearnCrvTricrypto is ITrigger {
+contract YearnCrv3Crypto is ITrigger {
   // --- Tokens ---
   // Token addresses
   IERC20 internal constant usdt = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
@@ -49,7 +49,7 @@ contract YearnCrvTricrypto is ITrigger {
   /// @notice Yearn vault this trigger is for
   IYVaultV2 public immutable vault;
 
-  /// @notice Curve tricrypto pool used as a strategy by `vault`
+  /// @notice Curve 3crypto pool used as a strategy by `vault`
   ICurvePool public immutable curve;
 
   /// @notice Last read pricePerShare
@@ -62,7 +62,7 @@ contract YearnCrvTricrypto is ITrigger {
 
   /**
    * @param _vault Address of the Yearn V2 vault this trigger should protect
-   * @param _curve Address of the Curve Tricrypto pool uses by the above Yearn vault
+   * @param _curve Address of the Curve 3Crypto pool uses by the above Yearn vault
    * @dev For definitions of other constructor parameters, see ITrigger.sol
    */
   constructor(

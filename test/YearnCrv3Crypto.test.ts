@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import type { BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrvTricrypto, IERC20 } from '../typechain';
+import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrv3Crypto, IERC20 } from '../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -13,8 +13,8 @@ const { defaultAbiCoder, hexZeroPad, hexStripZeros } = ethers.utils;
 const BN = (x: BigNumberish) => ethers.BigNumber.from(x);
 const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
 const yearnVaultAddress = '0xE537B5cc158EB71037D4125BDD7538421981E6AA'; // mainnet Yearn crv3Crypto vault
-const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
-const curveTokenAddress = '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff'; // Curve Tricrypto pool token
+const curve3CryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve 3Crypto pool
+const curveTokenAddress = '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff'; // Curve 3Crypto pool token
 
 // Mainnet token addresses
 const tokenAddresses = {
@@ -44,13 +44,13 @@ async function balanceOf(token: keyof typeof tokenBalanceOfSlots, address: strin
   return (await contract.balanceOf(address)).toBigInt();
 }
 
-describe('YearnCrvTricrypto', function () {
+describe('YearnCrv3Crypto', function () {
   // --- Data ---
-  let yCrvTricrypto: IYVaultV2;
-  let crvTricrypto: ICurvePool;
+  let yCrv3Crypto: IYVaultV2;
+  let crv3Crypto: ICurvePool;
   let crvToken: IERC20;
   let deployer: SignerWithAddress;
-  let trigger: YearnCrvTricrypto;
+  let trigger: YearnCrv3Crypto;
   let triggerParams: (string | number[])[] = []; // trigger params deployment parameters
 
   // --- Functions modifying storage ---
@@ -82,11 +82,11 @@ describe('YearnCrvTricrypto', function () {
    * @param balance New balance to set
    */
   async function modifyCrvBalance(token: keyof typeof tokenBalanceOfSlots, numerator: bigint, denominator: bigint) {
-    const value = ((await balanceOf(token, curveTricryptoAddress)) * numerator) / denominator;
+    const value = ((await balanceOf(token, curve3CryptoAddress)) * numerator) / denominator;
     const tokenAddress = tokenAddresses[token];
     if (!tokenAddress) throw new Error('Invalid token selection');
     const mappingSlot = tokenBalanceOfSlots[token];
-    const storageSlot = getStorageSlot(mappingSlot, curveTricryptoAddress);
+    const storageSlot = getStorageSlot(mappingSlot, curve3CryptoAddress);
     await network.provider.send('hardhat_setStorageAt', [tokenAddress, storageSlot, to32ByteHex(value)]);
   }
 
@@ -108,30 +108,30 @@ describe('YearnCrvTricrypto', function () {
     const [deployer, recipient] = await ethers.getSigners();
 
     // Get mainnet contract instances
-    const yCrvTricrypto = <IYVaultV2>await ethers.getContractAt('IYVaultV2', yearnVaultAddress);
-    const crvTricrypto = <ICurvePool>await ethers.getContractAt('ICurvePool', curveTricryptoAddress);
+    const yCrv3Crypto = <IYVaultV2>await ethers.getContractAt('IYVaultV2', yearnVaultAddress);
+    const crv3Crypto = <ICurvePool>await ethers.getContractAt('ICurvePool', curve3CryptoAddress);
     const crvToken = <IERC20>await ethers.getContractAt('IERC20', curveTokenAddress);
 
-    // Deploy YearnCrvTricrypto trigger
+    // Deploy YearnCrv3Crypto trigger
     const triggerParams = [
-      'Yearn Curve Tricrypto Trigger', // name
-      'yCRV-TRICRYPTO-TRIG', // symbol
-      'Triggers when the Yearn vault share price decreases, or the tricrypto pool fails', // description
+      'Yearn Curve 3Crypto Trigger', // name
+      'yCRV-3CRYPTO-TRIG', // symbol
+      "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve 3Crypto pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve 3Crypto pool are more than 50% lower than the true balances", // description
       [1, 3], // platform IDs for Yearn and Curve, respectively
       recipient.address, // subsidy recipient
-      yearnVaultAddress, // mainnet Yearn crvTricrypto vault
-      curveTricryptoAddress, // mainnet Curve Tricrypto pool
+      yearnVaultAddress, // mainnet Yearn crv3Crypto vault
+      curve3CryptoAddress, // mainnet Curve 3Crypto pool
     ];
 
-    const YearnCrvTricryptoArtifact = await artifacts.readArtifact('YearnCrvTricrypto');
-    const trigger = <YearnCrvTricrypto>await deployContract(deployer, YearnCrvTricryptoArtifact, triggerParams);
+    const YearnCrv3CryptoArtifact = await artifacts.readArtifact('YearnCrv3Crypto');
+    const trigger = <YearnCrv3Crypto>await deployContract(deployer, YearnCrv3CryptoArtifact, triggerParams);
 
-    return { deployer, yCrvTricrypto, crvTricrypto, crvToken, trigger, triggerParams };
+    return { deployer, yCrv3Crypto, crv3Crypto, crvToken, trigger, triggerParams };
   }
 
   // --- Tests ---
   beforeEach(async () => {
-    ({ deployer, yCrvTricrypto, crvTricrypto, crvToken, trigger, triggerParams } = await loadFixture(setupFixture));
+    ({ deployer, yCrv3Crypto, crv3Crypto, crvToken, trigger, triggerParams } = await loadFixture(setupFixture));
   });
 
   describe('Deployment', () => {
@@ -188,8 +188,8 @@ describe('YearnCrvTricrypto', function () {
       // Call checkAndToggleTrigger to simulate someone using the protocol
       await trigger.checkAndToggleTrigger();
       expect(await trigger.isTriggered()).to.be.false; // sanity check
-      const newPricePerShare = await yCrvTricrypto.pricePerShare();
-      const newVirtualPrice = await crvTricrypto.get_virtual_price();
+      const newPricePerShare = await yCrv3Crypto.pricePerShare();
+      const newVirtualPrice = await crv3Crypto.get_virtual_price();
 
       // Verify the new state
       const currentPricePerShare = await trigger.lastPricePerShare();
@@ -203,13 +203,13 @@ describe('YearnCrvTricrypto', function () {
       // decrease total supply by that amount
       async function modifyLastPricePerShare(numerator: bigint, denominator: bigint) {
         const lastPricePerShare = (await trigger.lastPricePerShare()).toBigInt();
-        const lastTotalSupply = (await yCrvTricrypto.totalSupply()).toBigInt();
+        const lastTotalSupply = (await yCrv3Crypto.totalSupply()).toBigInt();
         const newTotalSupply = (lastTotalSupply * denominator) / numerator;
         const newPricePerShare = (lastPricePerShare * numerator) / denominator;
         await setYearnTotalSupply(newTotalSupply);
         // Due to rounding error, values may sometimes differ by 1 wei, so validate with a tolerance +/2 wei
-        expect(await yCrvTricrypto.pricePerShare()).to.be.above(newPricePerShare - 2n);
-        expect(await yCrvTricrypto.pricePerShare()).to.be.below(newPricePerShare + 2n);
+        expect(await yCrv3Crypto.pricePerShare()).to.be.above(newPricePerShare - 2n);
+        expect(await yCrv3Crypto.pricePerShare()).to.be.below(newPricePerShare + 2n);
       }
 
       // Read the trigger's tolerance
@@ -241,8 +241,8 @@ describe('YearnCrvTricrypto', function () {
         const newVirtualPrice = (lastVirtualPrice * numerator) / denominator;
         await setCrvTotalSupply(newTotalSupply);
         // Due to rounding error, values may sometimes differ by 1 wei, so validate with a tolerance +/2 wei
-        expect(await crvTricrypto.get_virtual_price()).to.be.above(newVirtualPrice - 2n);
-        expect(await crvTricrypto.get_virtual_price()).to.be.below(newVirtualPrice + 2n);
+        expect(await crv3Crypto.get_virtual_price()).to.be.above(newVirtualPrice - 2n);
+        expect(await crv3Crypto.get_virtual_price()).to.be.below(newVirtualPrice + 2n);
       }
 
       // Read the trigger's tolerance
