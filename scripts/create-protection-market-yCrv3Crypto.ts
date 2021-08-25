@@ -21,7 +21,7 @@ const symbol = 'yCRV-3CRYPTO-TRIG'; // symbol
 const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve 3Crypto pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve 3Crypto pool are more than 50% lower than the true balances"; // prettier-ignore
 const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
-const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crv3Crypto vault
+const yearnVaultAddress = '0xE537B5cc158EB71037D4125BDD7538421981E6AA'; // mainnet Yearn crv3Crypto vault
 const curve3CryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve 3Crypto pool
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
