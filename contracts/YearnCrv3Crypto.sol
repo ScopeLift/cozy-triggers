@@ -38,9 +38,9 @@ contract YearnCrv3Crypto is ITrigger {
   uint256 public constant vaultTol = scale - 500; // 50% drop, represented on a scale where 1000 = 100%
 
   /// @dev Consider trigger toggled if Curve virtual price drops by this percentage. Similar to the Yearn V2 price
-  /// per share, the virtual price is expected to decrease during normal operation, but it can never decrease by
-  /// more than 50% during normal operation. Therefore we check for a 51% drop
-  uint256 public constant virtualPriceTol = scale - 510; // 51% drop, since 1000-510=490, and multiplying by 0.49 = 51% drop
+  /// per share, the virtual price is expected to decrease during normal operation, but it should never decrease by
+  /// more than 50% during normal operation. Therefore we check for a 50% drop
+  uint256 public constant virtualPriceTol = scale - 500; // 50% drop
 
   /// @dev Consider trigger toggled if Curve internal balances are lower than true balances by this percentage
   uint256 public constant balanceTol = scale - 500; // 50% drop

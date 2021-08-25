@@ -1,7 +1,7 @@
 // --- Imports ---
 import { artifacts, ethers, network, waffle } from 'hardhat';
 import { expect } from 'chai';
-import type { BigNumberish } from '@ethersproject/bignumber';
+import type { BigNumber, BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrv3Crypto, IERC20 } from '../typechain';
@@ -139,13 +139,13 @@ describe('YearnCrv3Crypto', function () {
       expect(await trigger.name()).to.equal(triggerParams[0]);
       expect(await trigger.symbol()).to.equal(triggerParams[1]);
       expect(await trigger.description()).to.equal(triggerParams[2]);
-      const platformIds = (await trigger.getPlatformIds()).map((id) => id.toNumber());
+      const platformIds = (await trigger.getPlatformIds()).map((id: BigNumber) => id.toNumber());
       expect(platformIds).to.deep.equal(triggerParams[3]); // use `.deep.equal` to compare array equality
       expect(await trigger.recipient()).to.equal(triggerParams[4]);
       expect(await trigger.vault()).to.equal(triggerParams[5]);
       expect(await trigger.curve()).to.equal(triggerParams[6]);
       expect(await trigger.vaultTol()).to.equal('500');
-      expect(await trigger.virtualPriceTol()).to.equal('490');
+      expect(await trigger.virtualPriceTol()).to.equal('500');
     });
   });
 
