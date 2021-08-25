@@ -12,7 +12,7 @@ const { MaxUint256: MAX_UINT } = ethers.constants;
 const { defaultAbiCoder, hexZeroPad, hexStripZeros } = ethers.utils;
 const BN = (x: BigNumberish) => ethers.BigNumber.from(x);
 const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
-const yearnVaultAddress = '0x3D980E50508CFd41a13837A60149927a11c03731'; // mainnet Yearn crvTricrypto vault
+const yearnVaultAddress = '0xE537B5cc158EB71037D4125BDD7538421981E6AA'; // mainnet Yearn crv3Crypto vault
 const curveTricryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve Tricrypto pool
 const curveTokenAddress = '0xc4AD29ba4B3c580e6D59105FFf484999997675Ff'; // Curve Tricrypto pool token
 
