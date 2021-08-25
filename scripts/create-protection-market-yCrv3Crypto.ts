@@ -53,13 +53,13 @@ async function main(): Promise<void> {
   const irModelFactory: ContractFactory = await hre.ethers.getContractFactory('JumpRateModelV2', signer);
 
   // Deploy the interest rate model, configured with the following parameters:
-  //   - 3% base borrow rate at zero utilization
-  //   - Linear increase from 3% to 9% borrow rate at 80% utilization
-  //   - Linear increase from 9% to 85% borrow rate at 100% utilization
+  //   - 2% base borrow rate at zero utilization
+  //   - Linear increase from 2% to 18% borrow rate at 80% utilization
+  //   - Linear increase from 18% to 121% borrow rate at 100% utilization
   const constructorArgs = [
-    '30000000000000000', // baseRatePerYear of 3% = 3e16
-    '120000000000000000', // multiplierPerYear of 12% = 1.2e17 gives 15% borrow rate at kink
-    '3500000000000000000', // jumpMultiplierPerYear of 350% = 3.5e18 gives 85% borrow rate at 100% utilization
+    '20000000000000000', // baseRatePerYear of 2% = 2e16
+    '160000000000000000', // multiplierPerYear of 16% = 1.6e17 gives 18% borrow rate at kink
+    '5150000000000000000', // jumpMultiplierPerYear of 515% = 5.15e18 gives 121% borrow rate at 100% utilization
     '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
     '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
   ];
