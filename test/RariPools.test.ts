@@ -94,6 +94,71 @@ markets.forEach((vault) => {
       ({ deployer, market, token, trigger, triggerParams } = await loadFixture(setupFixture));
     });
 
+    it('USDC pool: share price only increases', async () => {
+      // --- Helper variables and methods ---
+      if (vault.name !== 'Rari USDC Pool') return;
+      const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+      const usdc = new ethers.Contract(usdcAddress, ['function approve(address,uint256) external'], deployer);
+
+      const rariAbi = [
+        'function deposit(string calldata currencyCode, uint256 amount) external',
+        'function withdraw(string calldata currencyCode, uint256 amount) external returns (uint256)',
+      ];
+      const rari = new ethers.Contract(market.address, rariAbi, deployer);
+      const rariToken = await ethers.getContractAt('IERC20', '0x016bf078ABcaCB987f0589a6d3BEAdD4316922B0', deployer);
+
+      function getBalanceOfSlotSolidity(mappingSlot: string, address: string) {
+        const { hexStripZeros, keccak256, defaultAbiCoder } = ethers.utils;
+        return hexStripZeros(keccak256(defaultAbiCoder.encode(['address', 'uint256'], [address, mappingSlot])));
+      }
+
+      async function setUsdcBalance(account: string, amount: BigNumberish) {
+        const slot = getBalanceOfSlotSolidity('0x9', account);
+        await network.provider.send('hardhat_setStorageAt', [usdcAddress, slot, to32ByteHex(amount)]);
+      }
+
+      async function getPricePerShare() {
+        await trigger.checkAndToggleTrigger();
+        return trigger.lastPricePerShare();
+      }
+
+      async function getRariBalance() {
+        return rariToken.balanceOf(deployer.address);
+      }
+
+      // --- Setup ---
+      const sp1 = await getPricePerShare();
+      const bal1 = await getRariBalance();
+
+      // --- Give user USDC ---
+      const amount = ethers.utils.parseUnits('1000000000', 6);
+      await setUsdcBalance(deployer.address, amount);
+
+      // --- Deposit ---
+      await usdc.approve(rari.address, ethers.constants.MaxUint256);
+      await rari.deposit('USDC', amount);
+      const sp2 = await getPricePerShare();
+      const bal2 = await getRariBalance();
+      expect(sp2.gt(sp1)).to.be.true;
+      expect(bal2.gt(bal1)).to.be.true;
+
+      // --- Withdraw ---
+      await rari.withdraw('USDC', amount);
+      const sp3 = await getPricePerShare();
+      const bal3 = await getRariBalance();
+      expect(sp3.gt(sp2)).to.be.true;
+      expect(bal3.lt(bal2)).to.be.true;
+
+      // --- Log outputs for verification ---
+      console.log('share price 1', sp1.toString());
+      console.log('share price 2', sp2.toString());
+      console.log('share price 3', sp3.toString());
+      console.log('');
+      console.log('rari receipt token balance 1', bal1.toString());
+      console.log('rari receipt token balance 2', bal2.toString());
+      console.log('rari receipt token balance 3', bal3.toString());
+    });
+
     describe('Deployment', () => {
       it('initializes properly', async () => {
         expect(await trigger.name()).to.equal(triggerParams[0]);
