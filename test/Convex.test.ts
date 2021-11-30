@@ -4,7 +4,8 @@ import { expect } from 'chai';
 import type { BigNumber, BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { Convex, IConvexBooster, ICurveMetaPool, ICurvePool, ICurveToken, IERC20, MockCozyToken } from '../typechain';
+import { smock } from '@defi-wonderland/smock';
+import { Convex, IConvexBooster, ICurveMetaPool, ICurvePool, ICurveToken, MockCozyToken } from '../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -218,15 +219,37 @@ pools.forEach((pool) => {
           await assertTriggerStatus(true);
         });
 
+        // Due to a bug in Smock (https://github.com/defi-wonderland/smock/issues/101) we leave these tests
+        // skipped because they cause other tests to fail. Replace the `.skip` with a `.only` to run these
+        // tests and verify that they pass
         it.skip(`toggles trigger when ${poolType} pool's get_virtual_price() reverts`, async () => {
-          // We force the call to revert by removing code from the Curve pool's address. We set the code
-          // to a function with a single `get_virtual_price` method that reverts due to a divide by zero when called
-          // TODO this doesn't work because then balance checks fail -- determine best way to mock the reverts
-          const code = '0x60806040526005600055600060015534801561001a57600080fd5b5061011b8061002a6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063bb7b8b8014602d575b600080fd5b60336047565b604051603e91906069565b60405180910390f35b6000600154600054605791906082565b905090565b60638160ac565b82525050565b6000602082019050607c6000830184605c565b92915050565b6000608b8260ac565b915060948360ac565b92508260a15760a060b6565b5b828204905092915050565b6000819050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fdfea2646970667358221220c84ea0e808f459511172ce678905d7d727b5cdca14b44bafcb85a16fb917c18064736f6c63430008070033'; // prettier-ignore
-          const crvPool = poolType === 'base' ? crvBase : crvMeta;
+          // We force the call to revert by using Smock's Fakes, which are JS objects that emulate a contract.
+          // Because they are JS, they can be placed at an arbitrary address, so we place the fake at the
+          // address of the Curve pool. We then set the `balances()` calls to return the existing values
+          // values so balance checks behave the same, and set `get_virtual_price()` to revert
+
+          // Parameters
+          const isBase = poolType === 'base';
+          const curveTokenIndices = !isBase
+            ? pool.metaIndices
+            : pool.coinIndices.slice(pool.metaIndices.length).map((i) => i - pool.metaIndices.length);
+          const crvPool = isBase ? crvBase : crvMeta;
+          const balances = await Promise.all(curveTokenIndices.map(async (i) => await crvPool.balances(i)));
+
+          // Sanity check on initial conditions
           expect(await trigger.isTriggered()).to.be.false;
-          await network.provider.send('hardhat_setCode', [crvPool.address, code]);
+
+          // Configure the mock
+          const fakeCrvPool = await smock.fake<ICurvePool>('ICurvePool', { address: crvPool.address });
+          balances.forEach((bal, i) => fakeCrvPool.balances.whenCalledWith(i).returns(bal)); // set balances to return the existing values
+          fakeCrvPool.get_virtual_price.reverts('ahhhhhhh'); // set get_virtual_price() to revert
+
+          // Now we can test the trigger
           await assertTriggerStatus(true);
+
+          // Reset to avoid breaking other tests, since the fake is placed at the mainnet address
+          fakeCrvPool.get_virtual_price.reset();
+          fakeCrvPool.balances.reset();
         });
       });
 
