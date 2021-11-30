@@ -14,17 +14,13 @@ const BN = (x: BigNumberish) => ethers.BigNumber.from(x);
 const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
 
 // Mainnet token addresses
-const tokenAddresses = {
-  usdt: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-  wbtc: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
-  weth: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
-};
-
 const convexAddress = '0xF403C135812408BFbE8713b5A23a04b3D48AAE31'; // Convex deposit contract (booster)
 const recipient = '0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF';
 
 const pools = [
   {
+    coinIndices: [0,1,2,3,4], // 0,1 are meta pool, 2,3,4 are base pool
+    metaIndices: [0,1],
     triggerParams: [
       'Convex Curve USDP', // name
       'convexCurveUSDP-TRIG', // symbol
@@ -37,17 +33,26 @@ const pools = [
 ];
 
 // Define the balanceOf mapping slot number to use for finding the slot used to store balance of a given address
-const tokenBalanceOfSlots = { usdt: '0x2', wbtc: '0x0', weth: '0x3' };
+const tokenBalanceOfSlots = {
+  '0x1456688345527bE1f37E9e627DA0837D6f08C925': '0x2', // USDP
+  '0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490': '0x3', // 3Crv
+  '0x6B175474E89094C44Da98b954EedeAC495271d0F': '0x2', // DAI
+  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48': '0x9', // USDC
+  '0xdAC17F958D2ee523a2206206994597C13D831ec7': '0x2', // USDT
+};
+
+// Array of Vyper tokens
+const vyperTokens = ['0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490'];
 
 // --- Helper methods ---
-const getStorageSlot = (mappingSlot: string, address: string) => {
-  return hexStripZeros(keccak256(defaultAbiCoder.encode(['address', 'uint256'], [address, mappingSlot])));
+const getStorageSlot = (mappingSlot: string, address: string, isVyper: boolean = false) => {
+  return isVyper
+    ? hexStripZeros(keccak256(defaultAbiCoder.encode(['uint256', 'address'], [mappingSlot, address])))
+    : hexStripZeros(keccak256(defaultAbiCoder.encode(['address', 'uint256'], [address, mappingSlot])));
 };
 
 // Gets token balance
-async function balanceOf(token: keyof typeof tokenBalanceOfSlots, address: string) {
-  const tokenAddress = tokenAddresses[token];
-  if (!tokenAddress) throw new Error('Invalid token selection');
+async function balanceOf(tokenAddress: string, address: string) {
   const abi = ['function balanceOf(address) external view returns (uint256)'];
   const contract = new ethers.Contract(tokenAddress, abi, ethers.provider);
   return (await contract.balanceOf(address)).toBigInt();
@@ -65,16 +70,21 @@ pools.forEach((pool) => {
 
     // --- Functions modifying storage ---
 
-    /**
-     * @notice Change Curve pool's virtual price by modifying total supply (since virtual price is a getter method that
-     * divides by total token supply)
-     * @param supply New total supply. To zero out share price, use MAX_UINT256, which simulates unlimited minting of
-     * shares, making price per share effectively 0
-     */
+    // Change Curve pool's virtual price by modifying total supply (since virtual price is a getter method that
+    // divides by total token supply)/ To zero out share price, use MAX_UINT256, which simulates unlimited minting of
+    // shares, making price per share effectively 0ƒ
     async function setCrvTotalSupply(supply: BigNumberish, poolType: 'base' | 'meta') {
       const storageSlot = poolType === 'base' ? '0x5' : '0x4'; // total supply storage slot
       const token = poolType === 'base' ? crvBaseToken.address : crvMetaToken.address;
       await network.provider.send('hardhat_setStorageAt', [token, storageSlot, to32ByteHex(supply)]);
+    }
+
+    // Modify the balance of a token in the Curve pool by changing it by the specified amount
+    async function modifyCrvBalance(tokenAddress: string, account: string, numerator: bigint, denominator: bigint) {
+      const value = ((await balanceOf(tokenAddress, account)) * numerator) / denominator;
+      const mappingSlot = tokenBalanceOfSlots[tokenAddress as keyof typeof tokenBalanceOfSlots];
+      const storageSlot = getStorageSlot(mappingSlot, account, vyperTokens.includes(tokenAddress));
+      await network.provider.send('hardhat_setStorageAt', [tokenAddress, storageSlot, to32ByteHex(value)]);
     }
 
     // --- Test fixture ---
@@ -229,9 +239,34 @@ pools.forEach((pool) => {
         expect(currentVpMeta.toString()).to.equal(newVpMeta.toString());
       });
 
-      it.skip("toggles trigger when base pool's get_virtual_price() reverts", () => {});
+      pool.coinIndices.forEach(async (i) => {
+        it(`properly accounts for token ${i} balance being drained`, async () => {
+          // Get token info
+          const isMeta = pool.metaIndices.includes(i);
+          const curvePoolAddress = isMeta ? crvMeta.address : crvBase.address;
+          const tokenName = `${isMeta ? `metaToken${i}` : `baseToken${i - 2}`}`;
+          const tokenAddress = await trigger[tokenName]();
 
-      it.skip('properly accounts for <token> balance being drained', async () => {});
+          // Manipulate balances
+          const tolerance = (await trigger.balanceTol()).toBigInt();
+          // Increase balance to a larger value, should NOT be triggered (sanity check)
+          await modifyCrvBalance(tokenAddress, curvePoolAddress, 101n, 100n); // 1% increase
+          await assertTriggerStatus(false);
+          // Decrease balance by an amount less than tolerance, should NOT be triggered
+          await modifyCrvBalance(tokenAddress, curvePoolAddress, 99n, 100n); // 1% decrease
+          await assertTriggerStatus(false);
+          // Decrease balance by an amount exactly equal to tolerance, should NOT be triggered
+          // We add 1 to tolerance to prevent triggering here if balance is an odd number. For example if
+          // balance = 11, this will set the balance to 11 // 2 = 5, which will trigger because it's below 5.5
+          await modifyCrvBalance(tokenAddress, curvePoolAddress, tolerance + 1n, 1000n);
+          await assertTriggerStatus(false);
+          // Decrease balance by an amount more than tolerance, should be triggered
+          await modifyCrvBalance(tokenAddress, curvePoolAddress, tolerance - 1n, 1000n);
+          await assertTriggerStatus(true);
+        });
+      });
+
+      it.skip("toggles trigger when base pool's get_virtual_price() reverts", () => {});
     });
   });
 });

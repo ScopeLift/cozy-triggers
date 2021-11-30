@@ -25,12 +25,21 @@ interface ICurveMetaPool is ICurvePool {
  */
 contract Convex is ITrigger {
   uint256 public constant scale = 1000; // scale used to define percentages, percentages are defined as tolerance / scale
-  uint256 public constant virtualPriceTol = scale - 500; // 50% drop to consider trigger toggled
-
+  uint256 public constant virtualPriceTol = scale - 500; // toggle if virtual price drops by >50%
+  uint256 public constant balanceTol = scale - 500; // toggle if true balances are >50% lower than internally tracked balances
   address public constant convex = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // Convex deposit contract (booster)
+
   uint256 public immutable convexPoolId; // Convex deposit contract (booster) pool id
-  address public immutable curveBasePool; // Base Curve pool
+
   address public immutable curveMetaPool; // Curve meta pool
+  address public immutable curveBasePool; // Base Curve pool
+
+  address public immutable metaToken0;
+  address public immutable metaToken1;
+
+  address public immutable baseToken0;
+  address public immutable baseToken1;
+  address public immutable baseToken2;
 
   uint256 public lastVpBasePool; // last virtual price read from base pool
   uint256 public lastVpMetaPool; // last virtual price read from meta pool
@@ -47,11 +56,19 @@ contract Convex is ITrigger {
     address _recipient,
     uint256 _convexPoolId
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
-    // Get curve base pool address from the pool ID
+    // Get address from the pool ID
     convexPoolId = _convexPoolId;
     (address _curveLpToken, , , , , ) = IConvexBooster(convex).poolInfo(convexPoolId);
+
     curveMetaPool = ICurveToken(_curveLpToken).minter();
     curveBasePool = ICurveMetaPool(curveMetaPool).base_pool();
+
+    metaToken0 = ICurvePool(curveMetaPool).coins(0);
+    metaToken1 = ICurvePool(curveMetaPool).coins(1);
+
+    baseToken0 = ICurvePool(curveBasePool).coins(0);
+    baseToken1 = ICurvePool(curveBasePool).coins(1);
+    baseToken2 = ICurvePool(curveBasePool).coins(2);
 
     // Get virtual prices
     lastVpMetaPool = ICurvePool(curveMetaPool).get_virtual_price();
@@ -99,6 +116,10 @@ contract Convex is ITrigger {
     // second (failed) check (i.e. not the most recent check that triggered the). This is a bit
     // awkward, but ultimatly is not a problem
 
+    // Token balance checks
+    if (checkCurveBaseBalances()) return true;
+    if (checkCurveMetaBalances()) return true;
+
     // Base pool virtual price
     try ICurvePool(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
       bool _triggerVpBasePool = _newVpBasePool < ((lastVpBasePool * virtualPriceTol) / scale);
@@ -119,5 +140,26 @@ contract Convex is ITrigger {
 
     // Trigger condition has not occured
     return false;
+  }
+
+  /**
+   * @dev Checks if the Curve base pool internal balances are significantly lower than the true balances
+   * @return True if balances are out of tolerance and trigger should be toggled
+   */
+  function checkCurveBaseBalances() internal view returns (bool) {
+    return
+      (IERC20(baseToken0).balanceOf(curveBasePool) < ((ICurvePool(curveBasePool).balances(0) * balanceTol) / scale)) ||
+      (IERC20(baseToken1).balanceOf(curveBasePool) < ((ICurvePool(curveBasePool).balances(1) * balanceTol) / scale)) ||
+      (IERC20(baseToken2).balanceOf(curveBasePool) < ((ICurvePool(curveBasePool).balances(2) * balanceTol) / scale));
+  }
+
+  /**
+   * @dev Checks if the Curve meta pool internal balances are significantly lower than the true balances
+   * @return True if balances are out of tolerance and trigger should be toggled
+   */
+  function checkCurveMetaBalances() internal view returns (bool) {
+    return
+      (IERC20(metaToken0).balanceOf(curveMetaPool) < ((ICurvePool(curveMetaPool).balances(0) * balanceTol) / scale)) ||
+      (IERC20(metaToken1).balanceOf(curveMetaPool) < ((ICurvePool(curveMetaPool).balances(1) * balanceTol) / scale));
   }
 }
