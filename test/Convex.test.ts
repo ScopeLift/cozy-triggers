@@ -19,8 +19,8 @@ const recipient = '0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF';
 
 const pools = [
   {
-    coinIndices: [0,1,2,3,4], // 0,1 are meta pool, 2,3,4 are base pool
-    metaIndices: [0,1],
+    coinIndices: [0, 1, 2, 3, 4], // 0,1 are meta pool, 2,3,4 are base pool
+    metaIndices: [0, 1],
     triggerParams: [
       'Convex Curve USDP', // name
       'convexCurveUSDP-TRIG', // symbol
@@ -217,6 +217,17 @@ pools.forEach((pool) => {
           await modifyLastVirtualPrice(tolerance - 1n, 1000n);
           await assertTriggerStatus(true);
         });
+
+        it.skip(`toggles trigger when ${poolType} pool's get_virtual_price() reverts`, async () => {
+          // We force the call to revert by removing code from the Curve pool's address. We set the code
+          // to a function with a single `get_virtual_price` method that reverts due to a divide by zero when called
+          // TODO this doesn't work because then balance checks fail -- determine best way to mock the reverts
+          const code = '0x60806040526005600055600060015534801561001a57600080fd5b5061011b8061002a6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063bb7b8b8014602d575b600080fd5b60336047565b604051603e91906069565b60405180910390f35b6000600154600054605791906082565b905090565b60638160ac565b82525050565b6000602082019050607c6000830184605c565b92915050565b6000608b8260ac565b915060948360ac565b92508260a15760a060b6565b5b828204905092915050565b6000819050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fdfea2646970667358221220c84ea0e808f459511172ce678905d7d727b5cdca14b44bafcb85a16fb917c18064736f6c63430008070033'; // prettier-ignore
+          const crvPool = poolType === 'base' ? crvBase : crvMeta;
+          expect(await trigger.isTriggered()).to.be.false;
+          await network.provider.send('hardhat_setCode', [crvPool.address, code]);
+          await assertTriggerStatus(true);
+        });
       });
 
       it(`properly updates the saved state`, async () => {
@@ -265,8 +276,6 @@ pools.forEach((pool) => {
           await assertTriggerStatus(true);
         });
       });
-
-      it.skip("toggles trigger when base pool's get_virtual_price() reverts", () => {});
     });
   });
 });

@@ -126,7 +126,7 @@ contract Convex is ITrigger {
       if (_triggerVpBasePool) return true;
       lastVpBasePool = _newVpBasePool; // if not triggered, save off the virtual price for the next call
     } catch {
-      // return true;
+      return true;
     }
 
     // Meta pool virtual price
@@ -135,7 +135,7 @@ contract Convex is ITrigger {
       if (_triggerVpMetaPool) return true;
       lastVpMetaPool = _newVpMetaPool; // if not triggered, save off the virtual price for the next call
     } catch {
-      // return true;
+      return true;
     }
 
     // Trigger condition has not occured
