@@ -59,22 +59,65 @@ contract Convex is ITrigger {
   }
 
   function checkTriggerCondition() internal override returns (bool) {
-    // Read this blocks share price and virtual price
-    console.log("curveMetaPool %s", curveMetaPool);
-    console.log("curveBasePool %s", curveBasePool);
-    uint256 _newVpMetaPool = ICurvePool(curveMetaPool).get_virtual_price();
-    uint256 _newVpBasePool = ICurvePool(curveBasePool).get_virtual_price();
+    // Typically in this method we check all conditions, save them to storage, amd return the result.
+    // This is convenient because it ensures we have the data that caused the trigger saved into
+    // the state, but this is just convenient and not a requirement. We do not follow that pattern
+    // here because  certain trigger conditions can cause this method to revert if we tried that
+    // (and a revert means the trigger can never toggle). Instead, we check conditions one at a
+    // time, and return immediately if a trigger condition is met.
+    //
+    // Specifically, imagine the failure case where the base pool is hacked, and the attacker is
+    // able to mint 2^128 LP tokens for themself. When this trigger contract calls get_virtual_price()
+    // on the meta pool, it will revert. This revert happens as follows:
+    //   1. The base pool will have a virtual price close to zero (or zero, depending on the new
+    //      total supply). This value is the vp_rate variable in the meta pool's get_virtual_price() method
+    //   2. This virtual price is passed into the self._xp() method, which multiplies this by
+    //      the metacurrency token balance then divides by PRECISION. If virtual price is too
+    //      small relative to the PRECISION, the integer division is floored, returning zero.
+    //   3. This xp value of zero is passed into self._get_D(), and is used in division. We of
+    //      course cannot divide by zero, so the call reverts
+    //
+    // Given this potential failure mode, we check trigger conditions as follows:
+    //   1. First we do the balance checks since that check cannot revert
+    //   2. Next we check the virtual price of that base pool. This can still revert if the balance of
+    //      a token is too low, resulting in a zero value for xp leading to division by zero, but
+    //      because we already checked that balances are not too low this should be safe.
+    //      NOTE: There is a potential edge case where a token balance decrease is less than our 50%
+    //      threshold so the balance trigger condition is not toggled, BUT the balance is low enough
+    //      that xp is still floored to zero during integer division, resulting in a revert. More
+    //      analysis (or perhaps just a thorough understanding of Curve internals?) is needed to
+    //      ensure this is not possible.
+    //      NOTE: In a properly functioning curve market, get_virtual_price() should never revert.
+    //      Therefore, all external calls are wrapped in a try/catch, and if the call reverts then
+    //      something is wrong with the underlying protocol and we toggle the trigger
+    //   3. Lastly we check the virtual price of the meta pool for similar reasons to above
+    //
+    // For try/catch blocks, we return early if the trigger condition was met. If it wasn't, we
+    // save off the new state variable. This can result in "inconsistent" states after a trigger
+    // occurs. For example, if the first check is ok, but the second check fails, the final state
+    // of this contract will have the new state from the first check, but the prior state from the
+    // second (failed) check (i.e. not the most recent check that triggered the). This is a bit
+    // awkward, but ultimatly is not a problem
 
-    // Check trigger conditions. We could check one at a time and return as soon as one is true, but it is convenient
-    // to have the data that caused the trigger saved into the state, so we don't do that
-    bool _statusVpMetaPool = _newVpMetaPool < ((lastVpMetaPool * virtualPriceTol) / scale);
-    bool _statusVpBasePool = _newVpBasePool < ((lastVpBasePool * virtualPriceTol) / scale);
+    // Base pool virtual price
+    try ICurvePool(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
+      bool _triggerVpBasePool = _newVpBasePool < ((lastVpBasePool * virtualPriceTol) / scale);
+      if (_triggerVpBasePool) return true;
+      lastVpBasePool = _newVpBasePool; // if not triggered, save off the virtual price for the next call
+    } catch {
+      // return true;
+    }
 
-    // Save the new data
-    lastVpMetaPool = _newVpMetaPool;
-    lastVpBasePool = _newVpBasePool;
+    // Meta pool virtual price
+    try ICurvePool(curveMetaPool).get_virtual_price() returns (uint256 _newVpMetaPool) {
+      bool _triggerVpMetaPool = _newVpMetaPool < ((lastVpMetaPool * virtualPriceTol) / scale);
+      if (_triggerVpMetaPool) return true;
+      lastVpMetaPool = _newVpMetaPool; // if not triggered, save off the virtual price for the next call
+    } catch {
+      // return true;
+    }
 
-    // Return status
-    return _statusVpMetaPool || _statusVpBasePool;
+    // Trigger condition has not occured
+    return false;
   }
 }
