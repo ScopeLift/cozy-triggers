@@ -2,10 +2,11 @@
 import { artifacts, ethers, network, waffle } from 'hardhat';
 import { expect } from 'chai';
 import type { BigNumber, BigNumberish } from '@ethersproject/bignumber';
+import { Contract } from '@ethersproject/contracts';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { smock } from '@defi-wonderland/smock';
-import { Convex, IConvexBooster, ICurveMetaPool, ICurvePool, ICurveToken, MockCozyToken } from '../typechain';
+import { IConvexBooster, ICurvePool, MockCozyToken } from '../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -20,17 +21,57 @@ const recipient = '0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF';
 
 const pools = [
   {
-    coinIndices: [0, 1, 2, 3, 4], // 0,1 are meta pool, 2,3,4 are base pool
-    metaIndices: [0, 1],
+    symbol: 'USDP', // used to generate interface names
+    contract: 'ConvexUSDP',
+    coinIndices: [0, 1, 2, 3, 4],
+    metaIndices: [0, 1], // all other indices are the base pool
     triggerParams: [
       'Convex Curve USDP', // name
-      'convexCurveUSDP-TRIG', // symbol
+      'convexCurve-USDP-TRIG', // symbol
       'Convex Curve USDP trigger....', // description
-      [3, 12], // platform IDs for Yearn and Curve, respectively
+      [3, 12], // platform IDs for Curve and Convex, respectively
       recipient, // subsidy recipient
       28, // convex pool ID
     ],
   },
+  {
+    symbol: 'USDT',
+    contract: 'ConvexUSDT',
+    coinIndices: [0, 1, 2, 3, 4],
+    metaIndices: [0, 1],
+    triggerParams: [
+      'Convex Curve tBTC Trigger',
+      'convexCurve-tBTC-TRIG',
+      'Convex Curve tBTC trigger....',
+      [3, 12],
+      recipient,
+      16,
+    ],
+  },
+  // {
+  //   coinIndices: [0, 1, 2, 3, 4],
+  //   metaIndices: [0, 1],
+  //   triggerParams: [
+  //     'Convex Curve alUSD Trigger',
+  //     'convexCurve-alUSD-TRIG',
+  //     'Convex Curve alUSD trigger....',
+  //     [3, 12],
+  //     recipient,
+  //     32,
+  //   ],
+  // },
+  // {
+  //   coinIndices: [0, 1, 2, 3, 4],
+  //   metaIndices: [0, 1],
+  //   triggerParams: [
+  //     'Convex Curve FRAX Trigger',
+  //     'convexCurve-FRAX-TRIG',
+  //     'Convex Curve FRAX trigger....',
+  //     [3, 12],
+  //     recipient,
+  //     36,
+  //   ],
+  // },
 ];
 
 // Define the balanceOf mapping slot number to use for finding the slot used to store balance of a given address
@@ -40,10 +81,23 @@ const tokenBalanceOfSlots = {
   '0x6B175474E89094C44Da98b954EedeAC495271d0F': '0x2', // DAI
   '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48': '0x9', // USDC
   '0xdAC17F958D2ee523a2206206994597C13D831ec7': '0x2', // USDT
+  '0x8dAEBADE922dF735c38C80C7eBD708Af50815fAa': '0x3', // tBTC
+  //
+  '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3': '0x3', // Curve.fi renBTC/wBTC/sBTC
+  '0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D': '0x66', // renBTC
+  '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': '0x0', // Wrapped BTC
+  '0x4F6296455F8d754c19821cF1EC8FeBF2cD456E67': '0x3', // Synth sBTC (this is the address of the sBTC storage contract, token address is 0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6)
+};
+
+const tokenTotalSupplySlots = {
+  '0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490': '0x5', // Curve.fi DAI/USDC/USDT
+  '0x7Eb40E450b9655f4B3cC4259BCC731c63ff55ae6': '0x4', // Curve.fi USDP/3Crv
+  '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3': '0x5', // Curve.fi renBTC/wBTC/sBTC
+  '0x64eda51d3Ad40D56b9dFc5554E06F94e1Dd786Fd': '0x5', // Curve.fi tBTC/sbtcCrv
 };
 
 // Array of Vyper tokens
-const vyperTokens = ['0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490'];
+const vyperTokens = ['0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490', '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3'];
 
 // --- Helper methods ---
 const getStorageSlot = (mappingSlot: string, address: string, isVyper: boolean = false) => {
@@ -63,11 +117,11 @@ pools.forEach((pool) => {
   describe.only('Convex', function () {
     // --- Data ---
     let deployer: SignerWithAddress;
-    let trigger: Convex;
-    let crvMeta: ICurveMetaPool;
-    let crvBase: ICurvePool;
-    let crvMetaToken: ICurveToken;
-    let crvBaseToken: ICurveToken;
+    let trigger: Contract;
+    let crvMeta: Contract;
+    let crvBase: Contract;
+    let crvMetaToken: Contract;
+    let crvBaseToken: Contract;
 
     // --- Functions modifying storage ---
 
@@ -75,8 +129,8 @@ pools.forEach((pool) => {
     // divides by total token supply)/ To zero out share price, use MAX_UINT256, which simulates unlimited minting of
     // shares, making price per share effectively 0ƒ
     async function setCrvTotalSupply(supply: BigNumberish, poolType: 'base' | 'meta') {
-      const storageSlot = poolType === 'base' ? '0x5' : '0x4'; // total supply storage slot
       const token = poolType === 'base' ? crvBaseToken.address : crvMetaToken.address;
+      const storageSlot = tokenTotalSupplySlots[token as keyof typeof tokenTotalSupplySlots];
       await network.provider.send('hardhat_setStorageAt', [token, storageSlot, to32ByteHex(supply)]);
     }
 
@@ -111,23 +165,25 @@ pools.forEach((pool) => {
       const poolId = pool.triggerParams[pool.triggerParams.length - 1];
       const [curveLpTokenAddress] = await convex.poolInfo(poolId);
 
-      const crvLpToken = <ICurveToken>await ethers.getContractAt('ICurveToken', curveLpTokenAddress);
-      const crvMeta = <ICurveMetaPool>await ethers.getContractAt('ICurveMetaPool', await crvLpToken.minter());
-      const crvBase = <ICurvePool>await ethers.getContractAt('ICurvePool', await crvMeta.base_pool());
+      const crvLpToken = await ethers.getContractAt(`ICrvToken${pool.symbol}`, curveLpTokenAddress);
+      const crvMeta = await ethers.getContractAt(`ICrvMetaPool${pool.symbol}`, await crvLpToken.minter());
+      const crvBase = await ethers.getContractAt(`ICrvPool${pool.symbol}`, await crvMeta.base_pool());
 
       const crvMetaTokenAddrRaw = await network.provider.send('eth_getStorageAt', [crvMeta.address, '0x5']);
-      const crvMetaToken = <ICurveToken>(
-        await ethers.getContractAt('ICurveToken', ethers.utils.getAddress(`0x${crvMetaTokenAddrRaw.slice(26)}`))
+      const crvMetaToken = await ethers.getContractAt(
+        `ICrvToken${pool.symbol}`,
+        ethers.utils.getAddress(`0x${crvMetaTokenAddrRaw.slice(26)}`)
       );
 
       const crvBaseTokenAddrRaw = await network.provider.send('eth_getStorageAt', [crvBase.address, '0x5']);
-      const crvBaseToken = <ICurveToken>(
-        await ethers.getContractAt('ICurveToken', ethers.utils.getAddress(`0x${crvBaseTokenAddrRaw.slice(26)}`))
+      const crvBaseToken = await ethers.getContractAt(
+        `ICrvToken${pool.symbol}`,
+        ethers.utils.getAddress(`0x${crvBaseTokenAddrRaw.slice(26)}`)
       );
 
       // Deploy trigger
-      const triggerArtifact = await artifacts.readArtifact('Convex');
-      const trigger = <Convex>await deployContract(deployer, triggerArtifact, pool.triggerParams);
+      const triggerArtifact = await artifacts.readArtifact(pool.contract);
+      const trigger = await deployContract(deployer, triggerArtifact, pool.triggerParams);
 
       return { deployer, trigger, crvMeta, crvBase, crvMetaToken, crvBaseToken };
     }
@@ -240,7 +296,8 @@ pools.forEach((pool) => {
           expect(await trigger.isTriggered()).to.be.false;
 
           // Configure the mock
-          const fakeCrvPool = await smock.fake<ICurvePool>('ICurvePool', { address: crvPool.address });
+          const ifaceName = isBase ? `ICrvPool${pool.symbol}` : `ICrvMetaPool${pool.symbol}`;
+          const fakeCrvPool = await smock.fake<ICurvePool>(ifaceName, { address: crvPool.address });
           balances.forEach((bal, i) => fakeCrvPool.balances.whenCalledWith(i).returns(bal)); // set balances to return the existing values
           fakeCrvPool.get_virtual_price.reverts('ahhhhhhh'); // set get_virtual_price() to revert
 
@@ -279,7 +336,13 @@ pools.forEach((pool) => {
           const isMeta = pool.metaIndices.includes(i);
           const curvePoolAddress = isMeta ? crvMeta.address : crvBase.address;
           const tokenName = `${isMeta ? `metaToken${i}` : `baseToken${i - 2}`}`;
-          const tokenAddress = await trigger[tokenName]();
+          let tokenAddress = await trigger[tokenName]();
+
+          // sBTC uses a storage contract, so we replace the token address with that
+          tokenAddress =
+            tokenAddress === '0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6'
+              ? '0x4F6296455F8d754c19821cF1EC8FeBF2cD456E67'
+              : tokenAddress;
 
           // Manipulate balances
           const tolerance = (await trigger.balanceTol()).toBigInt();
