@@ -3,16 +3,27 @@ pragma solidity ^0.8.9;
 import "./interfaces/IERC20.sol";
 import "./interfaces/ITrigger.sol";
 import "./interfaces/IConvexBooster.sol";
-import "./interfaces/ICurvePool.sol";
 
-import "hardhat/console.sol";
-
-interface ICurveToken is IERC20 {
+interface ICrvTokenUSDT is IERC20 {
   function minter() external view returns (address);
 }
 
-interface ICurveMetaPool is ICurvePool {
+interface ICrvPoolUSDT {
+  function balances(int128 index) external view returns (uint256);
+
+  function coins(int128 index) external view returns (address);
+
+  function get_virtual_price() external view returns (uint256);
+}
+
+interface ICrvMetaPoolUSDT {
+  function balances(uint256 index) external view returns (uint256);
+
   function base_pool() external view returns (address);
+
+  function coins(uint256 index) external view returns (address);
+
+  function get_virtual_price() external view returns (uint256);
 }
 
 /**
@@ -23,7 +34,7 @@ interface ICurveMetaPool is ICurvePool {
  *      operation, this value should only increase. A decrease indicates someathing is wrong with the Yearn vault
  * @dev This trigger is for Convex pools that use a standard Curve pool (i.e. not a metapool)
  */
-contract Convex is ITrigger {
+contract ConvexUSDT is ITrigger {
   uint256 public constant scale = 1000; // scale used to define percentages, percentages are defined as tolerance / scale
   uint256 public constant virtualPriceTol = scale - 500; // toggle if virtual price drops by >50%
   uint256 public constant balanceTol = scale - 500; // toggle if true balances are >50% lower than internally tracked balances
@@ -56,23 +67,23 @@ contract Convex is ITrigger {
     address _recipient,
     uint256 _convexPoolId
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
-    // Get address from the pool ID
+    // Get addresses from the pool ID
     convexPoolId = _convexPoolId;
     (address _curveLpToken, , , , , ) = IConvexBooster(convex).poolInfo(convexPoolId);
 
-    curveMetaPool = ICurveToken(_curveLpToken).minter();
-    curveBasePool = ICurveMetaPool(curveMetaPool).base_pool();
+    curveMetaPool = ICrvTokenUSDT(_curveLpToken).minter();
+    curveBasePool = ICrvMetaPoolUSDT(curveMetaPool).base_pool();
 
-    metaToken0 = ICurvePool(curveMetaPool).coins(0);
-    metaToken1 = ICurvePool(curveMetaPool).coins(1);
+    metaToken0 = ICrvMetaPoolUSDT(curveMetaPool).coins(0);
+    metaToken1 = ICrvMetaPoolUSDT(curveMetaPool).coins(1);
 
-    baseToken0 = ICurvePool(curveBasePool).coins(0);
-    baseToken1 = ICurvePool(curveBasePool).coins(1);
-    baseToken2 = ICurvePool(curveBasePool).coins(2);
+    baseToken0 = ICrvPoolUSDT(curveBasePool).coins(0);
+    baseToken1 = ICrvPoolUSDT(curveBasePool).coins(1);
+    baseToken2 = ICrvPoolUSDT(curveBasePool).coins(2);
 
     // Get virtual prices
-    lastVpMetaPool = ICurvePool(curveMetaPool).get_virtual_price();
-    lastVpBasePool = ICurvePool(curveBasePool).get_virtual_price();
+    lastVpMetaPool = ICrvPoolUSDT(curveMetaPool).get_virtual_price();
+    lastVpBasePool = ICrvPoolUSDT(curveBasePool).get_virtual_price();
   }
 
   function checkTriggerCondition() internal override returns (bool) {
@@ -121,7 +132,7 @@ contract Convex is ITrigger {
     if (checkCurveMetaBalances()) return true;
 
     // Base pool virtual price
-    try ICurvePool(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
+    try ICrvPoolUSDT(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
       bool _triggerVpBasePool = _newVpBasePool < ((lastVpBasePool * virtualPriceTol) / scale);
       if (_triggerVpBasePool) return true;
       lastVpBasePool = _newVpBasePool; // if not triggered, save off the virtual price for the next call
@@ -130,7 +141,7 @@ contract Convex is ITrigger {
     }
 
     // Meta pool virtual price
-    try ICurvePool(curveMetaPool).get_virtual_price() returns (uint256 _newVpMetaPool) {
+    try ICrvPoolUSDT(curveMetaPool).get_virtual_price() returns (uint256 _newVpMetaPool) {
       bool _triggerVpMetaPool = _newVpMetaPool < ((lastVpMetaPool * virtualPriceTol) / scale);
       if (_triggerVpMetaPool) return true;
       lastVpMetaPool = _newVpMetaPool; // if not triggered, save off the virtual price for the next call
@@ -148,9 +159,11 @@ contract Convex is ITrigger {
    */
   function checkCurveBaseBalances() internal view returns (bool) {
     return
-      (IERC20(baseToken0).balanceOf(curveBasePool) < ((ICurvePool(curveBasePool).balances(0) * balanceTol) / scale)) ||
-      (IERC20(baseToken1).balanceOf(curveBasePool) < ((ICurvePool(curveBasePool).balances(1) * balanceTol) / scale)) ||
-      (IERC20(baseToken2).balanceOf(curveBasePool) < ((ICurvePool(curveBasePool).balances(2) * balanceTol) / scale));
+      (IERC20(baseToken0).balanceOf(curveBasePool) <
+        ((ICrvPoolUSDT(curveBasePool).balances(0) * balanceTol) / scale)) ||
+      (IERC20(baseToken1).balanceOf(curveBasePool) <
+        ((ICrvPoolUSDT(curveBasePool).balances(1) * balanceTol) / scale)) ||
+      (IERC20(baseToken2).balanceOf(curveBasePool) < ((ICrvPoolUSDT(curveBasePool).balances(2) * balanceTol) / scale));
   }
 
   /**
@@ -159,7 +172,9 @@ contract Convex is ITrigger {
    */
   function checkCurveMetaBalances() internal view returns (bool) {
     return
-      (IERC20(metaToken0).balanceOf(curveMetaPool) < ((ICurvePool(curveMetaPool).balances(0) * balanceTol) / scale)) ||
-      (IERC20(metaToken1).balanceOf(curveMetaPool) < ((ICurvePool(curveMetaPool).balances(1) * balanceTol) / scale));
+      (IERC20(metaToken0).balanceOf(curveMetaPool) <
+        ((ICrvMetaPoolUSDT(curveMetaPool).balances(0) * balanceTol) / scale)) ||
+      (IERC20(metaToken1).balanceOf(curveMetaPool) <
+        ((ICrvMetaPoolUSDT(curveMetaPool).balances(1) * balanceTol) / scale));
   }
 }
