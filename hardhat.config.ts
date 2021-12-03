@@ -49,7 +49,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       accounts: { mnemonic },
       chainId: chainIds.hardhat,
-      forking: { url: rpcUrl },
+      forking: { url: rpcUrl, blockNumber: 13735953 },
     },
     mainnet: createNetworkConfig('mainnet'),
   },
