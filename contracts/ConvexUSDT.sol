@@ -41,6 +41,9 @@ contract ConvexUSDT is ITrigger {
   address public constant convex = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // Convex deposit contract (booster)
 
   uint256 public immutable convexPoolId; // Convex deposit contract (booster) pool id
+  address public immutable convexToken; // Convex receipt token minted on deposits
+  address public immutable staker; // Convex contract that manages staking
+  address public immutable gauge; // Curve gauge that Convex deposits into
 
   address public immutable curveMetaPool; // Curve meta pool
   address public immutable curveBasePool; // Base Curve pool
@@ -68,8 +71,13 @@ contract ConvexUSDT is ITrigger {
     uint256 _convexPoolId
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
     // Get addresses from the pool ID
+    (address _curveLpToken, address _convexToken, address _gauge, , , ) = IConvexBooster(convex).poolInfo(
+      _convexPoolId
+    );
+    staker = IConvexBooster(convex).staker();
     convexPoolId = _convexPoolId;
-    (address _curveLpToken, , , , , ) = IConvexBooster(convex).poolInfo(convexPoolId);
+    convexToken = _convexToken;
+    gauge = _gauge;
 
     curveMetaPool = ICrvTokenUSDT(_curveLpToken).minter();
     curveBasePool = ICrvMetaPoolUSDT(curveMetaPool).base_pool();
@@ -126,6 +134,12 @@ contract ConvexUSDT is ITrigger {
     // of this contract will have the new state from the first check, but the prior state from the
     // second (failed) check (i.e. not the most recent check that triggered the). This is a bit
     // awkward, but ultimatly is not a problem
+
+    // Verify supply of Convex receipt tokens is equal to the amount of curve receipt tokens Convex
+    // can claim. Convex receipt tokens are minted 1:1 with deposited funds, so this protects
+    // against e.g. "infinite mint" type bugs, where an attacker is able to mint themselves more
+    // Convex receipt tokens than what they should receive.
+    if (IERC20(convexToken).totalSupply() != IERC20(gauge).balanceOf(staker)) return true;
 
     // Token balance checks
     if (checkCurveBaseBalances()) return true;

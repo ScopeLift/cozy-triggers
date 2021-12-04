@@ -310,6 +310,29 @@ pools.forEach((pool) => {
         });
       });
 
+      it('toggles trigger when convex totalSupply invariant is violated', async () => {
+        await assertTriggerStatus(false);
+        const poolId = pool.triggerParams[pool.triggerParams.length - 1];
+        const convex = await ethers.getContractAt('IConvexBooster', convexAddress, deployer);
+        const [_, convexTokenAddr] = await convex.poolInfo(poolId);
+        const convexToken = await ethers.getContractAt('IERC20', convexTokenAddr, deployer);
+
+        // Find totalSupply slot programatically
+        const ts = await convexToken.totalSupply();
+        let slot = '';
+        for (const i of Array.from(Array(500).keys())) {
+          const val = ethers.BigNumber.from(await ethers.provider.getStorageAt(convexTokenAddr, i));
+          if (ts.eq(val)) {
+            slot = ethers.utils.hexStripZeros(ethers.BigNumber.from(i).toHexString());
+            break;
+          }
+        }
+
+        // Increase totalSupply by 1 and verify trigger toggles
+        await network.provider.send('hardhat_setStorageAt', [convexTokenAddr, slot, to32ByteHex(ts.add(1))]);
+        await assertTriggerStatus(true);
+      });
+
       it(`properly updates the saved state`, async () => {
         // Update values (be careful, as setting total too high will cause reverts)
         const baseTotalSupply = await crvBaseToken.totalSupply();
