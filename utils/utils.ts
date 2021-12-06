@@ -189,22 +189,6 @@ const parseLog = (contract: Contract) => (log: { topics: Array<string>; data: st
   }
 };
 
-// Helper method to fetch JSON
-const fetch = (url: string) => axios.get(url).then((res) => res);
-
-// Get latest mainnet gas price
-export const getGasPrice = async () => {
-  try {
-    const response = await fetch('https://www.gasnow.org/api/v3/gas/price');
-    return BigNumber.from(response.data.data.rapid);
-  } catch (e) {
-    // Gas price to fallback to if API call fails
-    const fallbackGasPrice = parseUnits('50', 'gwei');
-    logWarning(`Could not fetch gas price. Using fallback gas price ${formatUnits(fallbackGasPrice, 'gwei')} gwei`);
-    return fallbackGasPrice;
-  }
-};
-
 // Helper method for waiting on user input. Source: https://stackoverflow.com/a/50890409
 export const waitForInput = (query: string) => {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -215,3 +199,70 @@ export const waitForInput = (query: string) => {
     })
   );
 };
+
+// Helper method to fetch JSON
+const fetch = (url: string) => axios.get(url).then((res) => res);
+
+type EstimatedPrice = {
+  confidence: number;
+  price: number;
+  maxPriorityFeePerGas: number;
+  maxFeePerGas: number;
+};
+
+type BlockPrice = {
+  blockNumber: number;
+  baseFeePerGas: number;
+  estimatedTransactionCount: number;
+  estimatedPrices: EstimatedPrice[];
+};
+
+type TxPriceResponse = {
+  system: string;
+  network: string;
+  unit: string;
+  maxPrice: number;
+  currentBlockNumber: number;
+  msSinceLastBlock: number;
+  blockPrices: BlockPrice[];
+};
+
+type TxPriceConfidence = 99 | 95 | 90 | 80 | 70;
+
+// Gas estimation method return type
+type GasEstimate = {
+  maxPriorityFeePerGas: BigNumber;
+  maxFeePerGas: BigNumber;
+};
+
+// Gets the current gas price via TxPrice API
+export async function getGasPrice(gasPriceConfidence: TxPriceConfidence = 99): Promise<GasEstimate> {
+  try {
+    // Send request and find the object with a 99% chance of being included in the next block
+    const response: TxPriceResponse = (await fetch('https://api.TxPrice.com/')).data;
+    const estimatedPrice = response.blockPrices[0]?.estimatedPrices?.find(
+      (price) => price.confidence === gasPriceConfidence
+    );
+
+    // Validate API response
+    const { maxPriorityFeePerGas, maxFeePerGas } = <EstimatedPrice>estimatedPrice;
+
+    if (!maxPriorityFeePerGas || !maxFeePerGas) {
+      console.log(estimatedPrice);
+      throw new Error('API did not return valid gas prices');
+    }
+
+    if (maxPriorityFeePerGas > 100 || maxFeePerGas > 1000) {
+      console.log(estimatedPrice);
+      throw new Error('Gas prices are very high');
+    }
+
+    // Convert prices to wei
+    const maxPriorityFeePerGasWei = parseUnits(String(maxPriorityFeePerGas), 'gwei');
+    const maxFeePerGasWei = parseUnits(String(maxFeePerGas), 'gwei');
+    return { maxPriorityFeePerGas: maxPriorityFeePerGasWei, maxFeePerGas: maxFeePerGasWei };
+  } catch (e) {
+    const message = (e as { message: string }).message;
+    throw new Error(`Error fetching gas price from TxPrice API: ${message}`);
+  }
+}
