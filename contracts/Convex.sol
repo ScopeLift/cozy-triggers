@@ -4,19 +4,15 @@ import "./interfaces/IERC20.sol";
 import "./interfaces/ITrigger.sol";
 import "./interfaces/IConvexBooster.sol";
 
-interface ICrvTokenUSDT is IERC20 {
+interface ICrvToken is IERC20 {
   function minter() external view returns (address);
 }
 
-interface ICrvPoolUSDT {
-  function balances(int128 index) external view returns (uint256);
-
-  function coins(int128 index) external view returns (address);
-
+interface ICrvBase {
   function get_virtual_price() external view returns (uint256);
 }
 
-interface ICrvMetaPoolUSDT {
+interface ICrvMeta {
   function balances(uint256 index) external view returns (uint256);
 
   function base_pool() external view returns (address);
@@ -28,13 +24,15 @@ interface ICrvMetaPoolUSDT {
 
 /**
  * @notice Defines a trigger that is toggled if any of the following conditions occur:
- *   1. Underlying Curve pool token balances are significantly lower than what the pool expects them to be
- *   2. Underlying Curve pool virtual price drops significantly
- *   3. The price per share for the V2 yVault significantly decreases between consecutive checks. Under normal
- *      operation, this value should only increase. A decrease indicates someathing is wrong with the Yearn vault
- * @dev This trigger is for Convex pools that use a standard Curve pool (i.e. not a metapool)
+ *   1. Convex token total supply does not equal the Curve gauge balanceOf the Convex staker
+ *   2. Virtual price of an underlying Curve pool (whether base pool or meta pool) drops significantly
+ *   3. Internal token balances tracked by an underlying Curve pool (whether base pool or meta pool) are
+ *      significantly lower than the true balances
+ *
+ * @dev This abstract contract requires a few functions to be implemented. These are methods used to
+ * abstract calls to Curve pools which have different function signature that return the same data
  */
-contract ConvexUSDT is ITrigger {
+abstract contract Convex is ITrigger {
   uint256 public constant scale = 1000; // scale used to define percentages, percentages are defined as tolerance / scale
   uint256 public constant virtualPriceTol = scale - 500; // toggle if virtual price drops by >50%
   uint256 public constant balanceTol = scale - 500; // toggle if true balances are >50% lower than internally tracked balances
@@ -58,6 +56,10 @@ contract ConvexUSDT is ITrigger {
   uint256 public lastVpBasePool; // last virtual price read from base pool
   uint256 public lastVpMetaPool; // last virtual price read from meta pool
 
+  function basePoolCoins(uint256 index) internal view virtual returns (address);
+
+  function basePoolBalances(uint256 index) internal view virtual returns (uint256);
+
   /**
    * @param _convexPoolId TODO
    * @dev For definitions of other constructor parameters, see ITrigger.sol
@@ -79,19 +81,19 @@ contract ConvexUSDT is ITrigger {
     convexToken = _convexToken;
     gauge = _gauge;
 
-    curveMetaPool = ICrvTokenUSDT(_curveLpToken).minter();
-    curveBasePool = ICrvMetaPoolUSDT(curveMetaPool).base_pool();
+    curveMetaPool = ICrvToken(_curveLpToken).minter();
+    curveBasePool = ICrvMeta(curveMetaPool).base_pool();
 
-    metaToken0 = ICrvMetaPoolUSDT(curveMetaPool).coins(0);
-    metaToken1 = ICrvMetaPoolUSDT(curveMetaPool).coins(1);
+    metaToken0 = ICrvMeta(curveMetaPool).coins(0);
+    metaToken1 = ICrvMeta(curveMetaPool).coins(1);
 
-    baseToken0 = ICrvPoolUSDT(curveBasePool).coins(0);
-    baseToken1 = ICrvPoolUSDT(curveBasePool).coins(1);
-    baseToken2 = ICrvPoolUSDT(curveBasePool).coins(2);
+    baseToken0 = basePoolCoins(0);
+    baseToken1 = basePoolCoins(1);
+    baseToken2 = basePoolCoins(2);
 
     // Get virtual prices
-    lastVpMetaPool = ICrvPoolUSDT(curveMetaPool).get_virtual_price();
-    lastVpBasePool = ICrvPoolUSDT(curveBasePool).get_virtual_price();
+    lastVpMetaPool = ICrvMeta(curveMetaPool).get_virtual_price();
+    lastVpBasePool = ICrvBase(curveBasePool).get_virtual_price();
   }
 
   function checkTriggerCondition() internal override returns (bool) {
@@ -146,7 +148,7 @@ contract ConvexUSDT is ITrigger {
     if (checkCurveMetaBalances()) return true;
 
     // Base pool virtual price
-    try ICrvPoolUSDT(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
+    try ICrvBase(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
       bool _triggerVpBasePool = _newVpBasePool < ((lastVpBasePool * virtualPriceTol) / scale);
       if (_triggerVpBasePool) return true;
       lastVpBasePool = _newVpBasePool; // if not triggered, save off the virtual price for the next call
@@ -155,7 +157,7 @@ contract ConvexUSDT is ITrigger {
     }
 
     // Meta pool virtual price
-    try ICrvPoolUSDT(curveMetaPool).get_virtual_price() returns (uint256 _newVpMetaPool) {
+    try ICrvMeta(curveMetaPool).get_virtual_price() returns (uint256 _newVpMetaPool) {
       bool _triggerVpMetaPool = _newVpMetaPool < ((lastVpMetaPool * virtualPriceTol) / scale);
       if (_triggerVpMetaPool) return true;
       lastVpMetaPool = _newVpMetaPool; // if not triggered, save off the virtual price for the next call
@@ -173,11 +175,9 @@ contract ConvexUSDT is ITrigger {
    */
   function checkCurveBaseBalances() internal view returns (bool) {
     return
-      (IERC20(baseToken0).balanceOf(curveBasePool) <
-        ((ICrvPoolUSDT(curveBasePool).balances(0) * balanceTol) / scale)) ||
-      (IERC20(baseToken1).balanceOf(curveBasePool) <
-        ((ICrvPoolUSDT(curveBasePool).balances(1) * balanceTol) / scale)) ||
-      (IERC20(baseToken2).balanceOf(curveBasePool) < ((ICrvPoolUSDT(curveBasePool).balances(2) * balanceTol) / scale));
+      (IERC20(baseToken0).balanceOf(curveBasePool) < ((basePoolBalances(0) * balanceTol) / scale)) ||
+      (IERC20(baseToken1).balanceOf(curveBasePool) < ((basePoolBalances(1) * balanceTol) / scale)) ||
+      (IERC20(baseToken2).balanceOf(curveBasePool) < ((basePoolBalances(2) * balanceTol) / scale));
   }
 
   /**
@@ -186,9 +186,65 @@ contract ConvexUSDT is ITrigger {
    */
   function checkCurveMetaBalances() internal view returns (bool) {
     return
-      (IERC20(metaToken0).balanceOf(curveMetaPool) <
-        ((ICrvMetaPoolUSDT(curveMetaPool).balances(0) * balanceTol) / scale)) ||
-      (IERC20(metaToken1).balanceOf(curveMetaPool) <
-        ((ICrvMetaPoolUSDT(curveMetaPool).balances(1) * balanceTol) / scale));
+      (IERC20(metaToken0).balanceOf(curveMetaPool) < ((ICrvMeta(curveMetaPool).balances(0) * balanceTol) / scale)) ||
+      (IERC20(metaToken1).balanceOf(curveMetaPool) < ((ICrvMeta(curveMetaPool).balances(1) * balanceTol) / scale));
+  }
+}
+
+/**
+ * @notice Trigger for the Convex USDP pool
+ */
+contract ConvexUSDP is Convex {
+  bytes4 internal constant basePoolCoinsSelector = 0xc6610657; // bytes4(keccak256("coins(uint256)"))
+  bytes4 internal constant basePoolBalancesSelector = 0x4903b0d1; // bytes4(keccak256("balances(uint256)"))
+
+  constructor(
+    string memory _name,
+    string memory _symbol,
+    string memory _description,
+    uint256[] memory _platformIds,
+    address _recipient,
+    uint256 _convexPoolId
+  ) Convex(_name, _symbol, _description, _platformIds, _recipient, _convexPoolId) {}
+
+  function basePoolCoins(uint256 index) internal view override returns (address) {
+    (bool ok, bytes memory ret) = curveBasePool.staticcall(abi.encodeWithSelector(basePoolCoinsSelector, index));
+    require(ok, "coins call reverted");
+    return abi.decode(ret, (address));
+  }
+
+  function basePoolBalances(uint256 index) internal view override returns (uint256) {
+    (bool ok, bytes memory ret) = curveBasePool.staticcall(abi.encodeWithSelector(basePoolBalancesSelector, index));
+    require(ok, "coins call reverted");
+    return abi.decode(ret, (uint256));
+  }
+}
+
+/**
+ * @notice Trigger for the Convex USDT pool
+ */
+contract ConvexUSDT is Convex {
+  bytes4 internal constant basePoolCoinsSelector = 0x23746eb8; // bytes4(keccak256("coins(int128)"))
+  bytes4 internal constant basePoolBalancesSelector = 0x065a80d8; // bytes4(keccak256("balances(int128)"))
+
+  constructor(
+    string memory _name,
+    string memory _symbol,
+    string memory _description,
+    uint256[] memory _platformIds,
+    address _recipient,
+    uint256 _convexPoolId
+  ) Convex(_name, _symbol, _description, _platformIds, _recipient, _convexPoolId) {}
+
+  function basePoolCoins(uint256 index) internal view override returns (address) {
+    (bool ok, bytes memory ret) = curveBasePool.staticcall(abi.encodeWithSelector(basePoolCoinsSelector, index));
+    require(ok, "coins call reverted");
+    return abi.decode(ret, (address));
+  }
+
+  function basePoolBalances(uint256 index) internal view override returns (uint256) {
+    (bool ok, bytes memory ret) = curveBasePool.staticcall(abi.encodeWithSelector(basePoolBalancesSelector, index));
+    require(ok, "coins call reverted");
+    return abi.decode(ret, (uint256));
   }
 }
