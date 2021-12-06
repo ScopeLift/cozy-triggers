@@ -97,10 +97,10 @@ abstract contract Convex is ITrigger {
   }
 
   function checkTriggerCondition() internal override returns (bool) {
-    // Typically in this method we check all conditions, save them to storage, amd return the result.
+    // In other triggers contracts we check all conditions, save them to storage, and return the result.
     // This is convenient because it ensures we have the data that caused the trigger saved into
     // the state, but this is just convenient and not a requirement. We do not follow that pattern
-    // here because  certain trigger conditions can cause this method to revert if we tried that
+    // here because certain trigger conditions can cause this method to revert if we tried that
     // (and a revert means the trigger can never toggle). Instead, we check conditions one at a
     // time, and return immediately if a trigger condition is met.
     //
@@ -122,12 +122,10 @@ abstract contract Convex is ITrigger {
     //      because we already checked that balances are not too low this should be safe.
     //      NOTE: There is a potential edge case where a token balance decrease is less than our 50%
     //      threshold so the balance trigger condition is not toggled, BUT the balance is low enough
-    //      that xp is still floored to zero during integer division, resulting in a revert. More
-    //      analysis (or perhaps just a thorough understanding of Curve internals?) is needed to
-    //      ensure this is not possible.
-    //      NOTE: In a properly functioning curve market, get_virtual_price() should never revert.
-    //      Therefore, all external calls are wrapped in a try/catch, and if the call reverts then
-    //      something is wrong with the underlying protocol and we toggle the trigger
+    //      that xp is still floored to zero during integer division, resulting in a revert. In a
+    //      properly functioning curve market, get_virtual_price() should never revert. Therefore,
+    //      all external calls are wrapped in a try/catch, and if the call reverts then something is
+    //      wrong with the underlying protocol and we toggle the trigger
     //   3. Lastly we check the virtual price of the meta pool for similar reasons to above
     //
     // For try/catch blocks, we return early if the trigger condition was met. If it wasn't, we
@@ -144,10 +142,9 @@ abstract contract Convex is ITrigger {
     if (IERC20(convexToken).totalSupply() != IERC20(gauge).balanceOf(staker)) return true;
 
     // Token balance checks
-    if (checkCurveBaseBalances()) return true;
-    if (checkCurveMetaBalances()) return true;
+    if (checkCurveBaseBalances() || checkCurveMetaBalances()) return true;
 
-    // Base pool virtual price
+    // Base pool virtual price check
     try ICrvBase(curveBasePool).get_virtual_price() returns (uint256 _newVpBasePool) {
       bool _triggerVpBasePool = _newVpBasePool < ((lastVpBasePool * virtualPriceTol) / scale);
       if (_triggerVpBasePool) return true;
@@ -156,7 +153,7 @@ abstract contract Convex is ITrigger {
       return true;
     }
 
-    // Meta pool virtual price
+    // Meta pool virtual price check
     try ICrvMeta(curveMetaPool).get_virtual_price() returns (uint256 _newVpMetaPool) {
       bool _triggerVpMetaPool = _newVpMetaPool < ((lastVpMetaPool * virtualPriceTol) / scale);
       if (_triggerVpMetaPool) return true;
@@ -215,7 +212,7 @@ contract ConvexUSDP is Convex {
 
   function basePoolBalances(uint256 index) internal view override returns (uint256) {
     (bool ok, bytes memory ret) = curveBasePool.staticcall(abi.encodeWithSelector(basePoolBalancesSelector, index));
-    require(ok, "coins call reverted");
+    require(ok, "balances call reverted");
     return abi.decode(ret, (uint256));
   }
 }
