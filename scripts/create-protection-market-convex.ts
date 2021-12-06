@@ -108,7 +108,7 @@ async function main(): Promise<void> {
   // If the returned address is the zero address, a money market does not exist and we cannot deploy a protection
   // market with the desired underlying
   if (cozyMMAddress === AddressZero) {
-    logFailure('Money Market exists. Exiting script');
+    logFailure('Money Market does not exist. Exiting script');
     return;
   }
   logSuccess(`Safe to continue: Found Money Market at ${cozyMMAddress}`);
