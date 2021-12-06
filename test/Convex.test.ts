@@ -6,12 +6,12 @@ import { Contract } from '@ethersproject/contracts';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { smock } from '@defi-wonderland/smock';
-import { IConvexBooster, ICurvePool, MockCozyToken } from '../typechain';
+import { IConvexBooster, MockCozyToken } from '../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
 const { MaxUint256: MAX_UINT } = ethers.constants;
-const { defaultAbiCoder, hexZeroPad, hexStripZeros } = ethers.utils;
+const { defaultAbiCoder, getAddress, hexZeroPad, hexStripZeros } = ethers.utils;
 const BN = (x: BigNumberish) => ethers.BigNumber.from(x);
 const to32ByteHex = (x: BigNumberish) => hexZeroPad(BN(x).toHexString(), 32);
 
@@ -114,7 +114,7 @@ async function balanceOf(tokenAddress: string, address: string) {
 }
 
 pools.forEach((pool) => {
-  describe.only('Convex', function () {
+  describe('Convex', function () {
     // --- Data ---
     let deployer: SignerWithAddress;
     let trigger: Contract;
@@ -165,21 +165,15 @@ pools.forEach((pool) => {
       const poolId = pool.triggerParams[pool.triggerParams.length - 1];
       const [curveLpTokenAddress] = await convex.poolInfo(poolId);
 
-      const crvLpToken = await ethers.getContractAt(`ICrvToken${pool.symbol}`, curveLpTokenAddress);
-      const crvMeta = await ethers.getContractAt(`ICrvMetaPool${pool.symbol}`, await crvLpToken.minter());
-      const crvBase = await ethers.getContractAt(`ICrvPool${pool.symbol}`, await crvMeta.base_pool());
+      const crvLpToken = await ethers.getContractAt('ICrvToken', curveLpTokenAddress);
+      const crvMeta = await ethers.getContractAt('ICrvMeta', await crvLpToken.minter());
+      const crvBase = await ethers.getContractAt('ICrvBase', await crvMeta.base_pool());
 
       const crvMetaTokenAddrRaw = await network.provider.send('eth_getStorageAt', [crvMeta.address, '0x5']);
-      const crvMetaToken = await ethers.getContractAt(
-        `ICrvToken${pool.symbol}`,
-        ethers.utils.getAddress(`0x${crvMetaTokenAddrRaw.slice(26)}`)
-      );
+      const crvMetaToken = await ethers.getContractAt('IERC20', getAddress(`0x${crvMetaTokenAddrRaw.slice(26)}`));
 
       const crvBaseTokenAddrRaw = await network.provider.send('eth_getStorageAt', [crvBase.address, '0x5']);
-      const crvBaseToken = await ethers.getContractAt(
-        `ICrvToken${pool.symbol}`,
-        ethers.utils.getAddress(`0x${crvBaseTokenAddrRaw.slice(26)}`)
-      );
+      const crvBaseToken = await ethers.getContractAt('IERC20', getAddress(`0x${crvBaseTokenAddrRaw.slice(26)}`));
 
       // Deploy trigger
       const triggerArtifact = await artifacts.readArtifact(pool.contract);
@@ -284,29 +278,47 @@ pools.forEach((pool) => {
           // address of the Curve pool. We then set the `balances()` calls to return the existing values
           // values so balance checks behave the same, and set `get_virtual_price()` to revert
 
+          // First we generate an array of all possible `balance` function signatures
+          const balanceSigs = ['balances(uint256)', 'balances(int128)'];
+          const balanceAbi = balanceSigs.map((sig) => `function ${sig} external view returns (uint256)`);
+
           // Parameters
           const isBase = poolType === 'base';
           const curveTokenIndices = !isBase
             ? pool.metaIndices
             : pool.coinIndices.slice(pool.metaIndices.length).map((i) => i - pool.metaIndices.length);
           const crvPool = isBase ? crvBase : crvMeta;
-          const balances = await Promise.all(curveTokenIndices.map(async (i) => await crvPool.balances(i)));
+
+          // Get existing balances by instantiating the Curve pool with the all `balance` interfaces and
+          // filtering out the ones that revert
+          const crvPoolBals = new Contract(crvPool.address, balanceAbi, crvPool.provider);
+          const balances = await Promise.all(
+            curveTokenIndices.map(async (i) => {
+              try {
+                const bal = await crvPoolBals[balanceSigs[0]](i);
+                return bal;
+              } catch (e) {
+                return await crvPoolBals[balanceSigs[1]](i);
+              }
+            })
+          );
 
           // Sanity check on initial conditions
           expect(await trigger.isTriggered()).to.be.false;
 
           // Configure the mock
-          const ifaceName = isBase ? `ICrvPool${pool.symbol}` : `ICrvMetaPool${pool.symbol}`;
-          const fakeCrvPool = await smock.fake<ICurvePool>(ifaceName, { address: crvPool.address });
-          balances.forEach((bal, i) => fakeCrvPool.balances.whenCalledWith(i).returns(bal)); // set balances to return the existing values
+          // We configure it so any `balances` syntax used returns the existing mainnet values
+          const abi = [...balanceAbi, 'function get_virtual_price() external view returns (uint256)'];
+          const fakeCrvPool = await smock.fake(abi, { address: crvPool.address });
+          balanceSigs.forEach((sig) => balances.forEach((bal, i) => fakeCrvPool[sig].whenCalledWith(i).returns(bal)));
           fakeCrvPool.get_virtual_price.reverts('ahhhhhhh'); // set get_virtual_price() to revert
 
           // Now we can test the trigger
           await assertTriggerStatus(true);
 
           // Reset to avoid breaking other tests, since the fake is placed at the mainnet address
+          balanceSigs.forEach((sig) => fakeCrvPool[sig].reset());
           fakeCrvPool.get_virtual_price.reset();
-          fakeCrvPool.balances.reset();
         });
       });
 
