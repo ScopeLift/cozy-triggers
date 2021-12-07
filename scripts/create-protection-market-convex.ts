@@ -24,7 +24,7 @@ const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY as string, hre.ethe
 const chainId = getChainId(hre);
 
 // STEP 1: TRIGGER CONTRACT SETUP
-const platformIds = [10];
+const platformIds = [3, 12];
 // const recipient = signer.address;
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
 
@@ -94,7 +94,7 @@ async function main(): Promise<void> {
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
   const triggerParams = [name, symbol, description, platformIds, recipient, poolId];
-  const trigger: Contract = await triggerFactory.deploy(...triggerParams);
+  const trigger: Contract = await triggerFactory.deploy(...triggerParams, { ...overrides, gasLimit: '0x7a1200' });
   await trigger.deployed();
   logSuccess(`${contractName} trigger deployed to ${trigger.address}`);
 
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
     underlyingAddress,
     trigger.address,
     irModelAddress,
-    overrides
+    { ...overrides, gasLimit: '8000000' }
   );
   console.log(`Creating Protection Market in transaction ${tx.hash}`);
 
