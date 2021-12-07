@@ -35,8 +35,8 @@ const pools = [
     ],
   },
   {
-    symbol: 'USDT',
-    contract: 'ConvexUSDT',
+    symbol: 'tBTC',
+    contract: 'ConvexTBTC',
     coinIndices: [0, 1, 2, 3, 4],
     metaIndices: [0, 1],
     triggerParams: [
