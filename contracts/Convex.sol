@@ -224,9 +224,9 @@ contract ConvexUSDP is Convex {
 }
 
 /**
- * @notice Trigger for the Convex USDT pool
+ * @notice Trigger for the Convex tBTC pool
  */
-contract ConvexUSDT is Convex {
+contract ConvexTBTC is Convex {
   bytes4 internal constant basePoolCoinsSelector = 0x23746eb8; // bytes4(keccak256("coins(int128)"))
   bytes4 internal constant basePoolBalancesSelector = 0x065a80d8; // bytes4(keccak256("balances(int128)"))
 

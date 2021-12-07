@@ -37,9 +37,9 @@ const pools = {
     description : "Triggers when the Curve base pool or Curve meta pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve base pool or Curve meta pool are more than 50% lower than the true balances, or the number of Convex receipt tokens does not match the amount claimable from Curve", // prettier-ignore
   },
   '16': {
-    contractName: 'ConvexUSDT',
-    name: 'Convex Curve USDT Trigger',
-    symbol: 'convexCurveUSDT-TRIG',
+    contractName: 'ConvexTBTC',
+    name: 'Convex Curve tBTC Trigger',
+    symbol: 'convexCurveTBTC-TRIG',
     description : "Triggers when the Curve base pool or Curve meta pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve base pool or Curve meta pool are more than 50% lower than the true balances, or the number of Convex receipt tokens does not match the amount claimable from Curve", // prettier-ignore
   },
 };
