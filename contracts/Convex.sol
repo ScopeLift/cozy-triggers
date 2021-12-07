@@ -33,6 +33,7 @@ interface ICrvMeta {
  * abstract calls to Curve pools which have different function signature that return the same data
  */
 abstract contract Convex is ITrigger {
+  // --- Parameters ---
   uint256 public constant scale = 1000; // scale used to define percentages, percentages are defined as tolerance / scale
   uint256 public constant virtualPriceTol = scale - 500; // toggle if virtual price drops by >50%
   uint256 public constant balanceTol = scale - 500; // toggle if true balances are >50% lower than internally tracked balances
@@ -46,19 +47,24 @@ abstract contract Convex is ITrigger {
   address public immutable curveMetaPool; // Curve meta pool
   address public immutable curveBasePool; // Base Curve pool
 
-  address public immutable metaToken0;
-  address public immutable metaToken1;
+  address public immutable metaToken0; // meta pool token 0
+  address public immutable metaToken1; // meta pool token 1
 
-  address public immutable baseToken0;
-  address public immutable baseToken1;
-  address public immutable baseToken2;
+  address public immutable baseToken0; // base pool token 0
+  address public immutable baseToken1; // base pool token 1
+  address public immutable baseToken2; // base pool token 2
 
   uint256 public lastVpBasePool; // last virtual price read from base pool
   uint256 public lastVpMetaPool; // last virtual price read from meta pool
 
+  // --- Methods to implement ---
+  // Gets the address of the coin at the specified index in the base pool
   function basePoolCoins(uint256 index) internal view virtual returns (address);
 
+  // Gets the the base pool's internal balance of the token at the specified index
   function basePoolBalances(uint256 index) internal view virtual returns (uint256);
+
+  // --- Core trigger logic ---
 
   /**
    * @param _convexPoolId TODO
@@ -97,7 +103,7 @@ abstract contract Convex is ITrigger {
   }
 
   function checkTriggerCondition() internal override returns (bool) {
-    // In other triggers contracts we check all conditions, save them to storage, and return the result.
+    // In other trigger contracts we check all conditions, save them to storage, and return the result.
     // This is convenient because it ensures we have the data that caused the trigger saved into
     // the state, but this is just convenient and not a requirement. We do not follow that pattern
     // here because certain trigger conditions can cause this method to revert if we tried that
@@ -141,7 +147,7 @@ abstract contract Convex is ITrigger {
     // Convex receipt tokens than what they should receive.
     if (IERC20(convexToken).totalSupply() != IERC20(gauge).balanceOf(staker)) return true;
 
-    // Token balance checks
+    // Internal balance vs. true balance checks
     if (checkCurveBaseBalances() || checkCurveMetaBalances()) return true;
 
     // Base pool virtual price check
