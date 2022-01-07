@@ -14,6 +14,21 @@ import chalk from 'chalk';
 import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
 import comptrollerAbi from '../abi/Comptroller.json';
 
+interface Pools {
+  [key: string]: PoolInfo;
+}
+
+interface PoolInfo {
+  contractName: string;
+  name: string;
+  symbol: string;
+  description: string;
+  underlyingName: string;
+  // Convex triggers with an underlying Curve LP token that use a Factory meta pool contract require the Curve base pool
+  // to be explicitly defined as it cannot be determined programmatically
+  basePool?: string;
+}
+
 // Constants
 const { AddressZero } = hre.ethers.constants;
 const cozyMultisig = '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b';
@@ -21,6 +36,7 @@ const cozyMultisig = '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b';
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;
 const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY as string, hre.ethers.provider);
+// const [signer] = await hre.ethers.getSigners(); // for deploying to hardhat
 const chainId = getChainId(hre);
 
 // STEP 1: TRIGGER CONTRACT SETUP
@@ -29,18 +45,36 @@ const platformIds = [3, 12];
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
 
 // Mainnet parameters for various Convex pools, keyed by the Convex Pool ID
-const pools = {
+const pools: Pools = {
   '28': {
     contractName: 'ConvexUSDP',
     name: 'Convex Curve USDP Trigger',
     symbol: 'convexCurveUSDP-TRIG',
     description : "Triggers when the Curve base pool or Curve meta pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve base pool or Curve meta pool are more than 50% lower than the true balances, or the number of Convex receipt tokens does not match the amount claimable from Curve", // prettier-ignore
+    underlyingName: 'USDC',
   },
   '16': {
     contractName: 'ConvexTBTC',
     name: 'Convex Curve tBTC Trigger',
     symbol: 'convexCurveTBTC-TRIG',
     description : "Triggers when the Curve base pool or Curve meta pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve base pool or Curve meta pool are more than 50% lower than the true balances, or the number of Convex receipt tokens does not match the amount claimable from Curve", // prettier-ignore
+    underlyingName: 'WBTC',
+  },
+  '32': {
+    contractName: 'Convex2',
+    name: 'Convex Curve FRAX Trigger',
+    symbol: 'convexCurveFRAX-TRIG',
+    description : "Triggers when the Curve base pool or Curve meta pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve base pool or Curve meta pool are more than 50% lower than the true balances, or the number of Convex receipt tokens does not match the amount claimable from Curve", // prettier-ignore
+    underlyingName: 'USDC',
+    basePool: '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7',
+  },
+  '36': {
+    contractName: 'Convex2',
+    name: 'Convex Curve alUSD Trigger',
+    symbol: 'convexCurveAlUSD-TRIG',
+    description : "Triggers when the Curve base pool or Curve meta pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve base pool or Curve meta pool are more than 50% lower than the true balances, or the number of Convex receipt tokens does not match the amount claimable from Curve", // prettier-ignore
+    underlyingName: 'USDC',
+    basePool: '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7',
   },
 };
 
@@ -54,7 +88,7 @@ async function main(): Promise<void> {
   if (!poolId) throw new Error("Please define the 'CONVEX_POOL_ID' environment variable. Keys of the `pools` variable are valid values"); // prettier-ignore
   if (!Object.keys(pools).includes(poolId)) throw new Error(`Pool ID ${poolId} is not a key in the \`pools\` object`);
 
-  const { contractName, name, symbol, description } = pools[poolId as keyof typeof pools];
+  const { contractName, name, symbol, description, underlyingName, basePool } = pools[poolId as keyof typeof pools];
 
   // Verify recipient address was set properly
   if (!utils.isAddress(recipient)) throw new Error('\n\n**** Please set the recipient address on line 23 ****\n');
@@ -63,7 +97,7 @@ async function main(): Promise<void> {
   await hre.run('compile');
 
   // Do some preparation
-  const underlyingAddress = getContractAddress('USDC', chainId);
+  const underlyingAddress = getContractAddress(underlyingName, chainId);
   const overrides = await getGasPrice();
   const irModelAddress = '0x2B356b2ff9D6B001d51d6aF65A05946818F5e2E6'; // re-using IR model from Yearn Curve USDN market
 
@@ -71,7 +105,7 @@ async function main(): Promise<void> {
   // Verify the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
   console.table({
-    'Deploying protection market for': `${contractName} Pool`,
+    'Deploying protection market for': `${name} Pool`,
     'Deployer address:              ': `${signer.address}`,
     'Deploying to network:          ': `${hre.network.name}`,
     'Underlying token:              ': `${underlyingAddress}`,
@@ -94,6 +128,9 @@ async function main(): Promise<void> {
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
   const triggerParams = [name, symbol, description, platformIds, recipient, poolId];
+
+  if (basePool) triggerParams.push(basePool);
+
   const trigger: Contract = await triggerFactory.deploy(...triggerParams, { ...overrides, gasLimit: '0x7a1200' });
   await trigger.deployed();
   logSuccess(`${contractName} trigger deployed to ${trigger.address}`);

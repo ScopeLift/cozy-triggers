@@ -5,7 +5,9 @@ import { formatUnits, parseEther, parseUnits } from '@ethersproject/units';
 import readline from 'readline';
 import chalk from 'chalk';
 import axios from 'axios';
+import { network } from 'hardhat';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import hardhatConfig from '../hardhat.config';
 import mainnetDeployAddresses from '../deployments/mainnet.json';
 
 // Rename contract names from the verbose deploy names to something more concise
@@ -265,4 +267,19 @@ export async function getGasPrice(gasPriceConfidence: TxPriceConfidence = 99): P
     const message = (e as { message: string }).message;
     throw new Error(`Error fetching gas price from TxPrice API: ${message}`);
   }
+}
+
+// Reset state between tests by re-forking from mainnet
+export async function reset() {
+  await network.provider.request({
+    method: 'hardhat_reset',
+    params: [
+      {
+        forking: {
+          jsonRpcUrl: hardhatConfig.networks?.hardhat?.forking?.url,
+          blockNumber: hardhatConfig.networks?.hardhat?.forking?.blockNumber, // requires archive node data
+        },
+      },
+    ],
+  });
 }

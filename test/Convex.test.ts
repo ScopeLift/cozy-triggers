@@ -7,6 +7,7 @@ import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { smock } from '@defi-wonderland/smock';
 import { IConvexBooster, MockCozyToken } from '../typechain';
+import { reset } from '../utils/utils';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -25,6 +26,7 @@ const pools = [
     contract: 'ConvexUSDP',
     coinIndices: [0, 1, 2, 3, 4],
     metaIndices: [0, 1], // all other indices are the base pool
+    poolId: 28, // convex pool ID
     triggerParams: [
       'Convex Curve USDP', // name
       'convexCurve-USDP-TRIG', // symbol
@@ -39,6 +41,7 @@ const pools = [
     contract: 'ConvexTBTC',
     coinIndices: [0, 1, 2, 3, 4],
     metaIndices: [0, 1],
+    poolId: 16,
     triggerParams: [
       'Convex Curve tBTC Trigger',
       'convexCurve-tBTC-TRIG',
@@ -48,30 +51,40 @@ const pools = [
       16,
     ],
   },
-  // {
-  //   coinIndices: [0, 1, 2, 3, 4],
-  //   metaIndices: [0, 1],
-  //   triggerParams: [
-  //     'Convex Curve alUSD Trigger',
-  //     'convexCurve-alUSD-TRIG',
-  //     'Convex Curve alUSD trigger....',
-  //     [3, 12],
-  //     recipient,
-  //     32,
-  //   ],
-  // },
-  // {
-  //   coinIndices: [0, 1, 2, 3, 4],
-  //   metaIndices: [0, 1],
-  //   triggerParams: [
-  //     'Convex Curve FRAX Trigger',
-  //     'convexCurve-FRAX-TRIG',
-  //     'Convex Curve FRAX trigger....',
-  //     [3, 12],
-  //     recipient,
-  //     36,
-  //   ],
-  // },
+  {
+    symbol: 'FRAX',
+    contract: 'Convex2',
+    coinIndices: [0, 1, 2, 3, 4],
+    metaIndices: [0, 1],
+    poolId: 32,
+    triggerParams: [
+      'Convex Curve FRAX Trigger',
+      'convexCurve-FRAX-TRIG',
+      'Convex Curve FRAX trigger....',
+      [3, 12],
+      recipient,
+      32,
+      '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7',
+    ],
+    basePool: '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7', // Curve base pool
+  },
+  {
+    symbol: 'alUSD',
+    contract: 'Convex2',
+    coinIndices: [0, 1, 2, 3, 4],
+    metaIndices: [0, 1],
+    poolId: 36,
+    triggerParams: [
+      'Convex Curve alUSD Trigger',
+      'convexCurve-alUSD-TRIG',
+      'Convex Curve alUSD trigger....',
+      [3, 12],
+      recipient,
+      36,
+      '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7',
+    ],
+    basePool: '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7', // Curve base pool
+  },
 ];
 
 // Define the balanceOf mapping slot number to use for finding the slot used to store balance of a given address
@@ -82,11 +95,15 @@ const tokenBalanceOfSlots = {
   '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48': '0x9', // USDC
   '0xdAC17F958D2ee523a2206206994597C13D831ec7': '0x2', // USDT
   '0x8dAEBADE922dF735c38C80C7eBD708Af50815fAa': '0x3', // tBTC
+  '0x853d955aCEf822Db058eb8505911ED77F175b99e': '0x0', // FRAX
+  '0xBC6DA0FE9aD5f3b0d58160288917AA56653660E9': '0x1', // alUSD
   //
   '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3': '0x3', // Curve.fi renBTC/wBTC/sBTC
   '0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D': '0x66', // renBTC
   '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': '0x0', // Wrapped BTC
   '0x4F6296455F8d754c19821cF1EC8FeBF2cD456E67': '0x3', // Synth sBTC (this is the address of the sBTC storage contract, token address is 0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6)
+  '0xd632f22692FaC7611d2AA1C0D552930D43CAEd3B': '0xF', // Curve.fi FRAX/3Crv
+  '0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c': '0xF', // Curve.fi alUSD/3Crv
 };
 
 const tokenTotalSupplySlots = {
@@ -94,6 +111,8 @@ const tokenTotalSupplySlots = {
   '0x7Eb40E450b9655f4B3cC4259BCC731c63ff55ae6': '0x4', // Curve.fi USDP/3Crv
   '0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3': '0x5', // Curve.fi renBTC/wBTC/sBTC
   '0x64eda51d3Ad40D56b9dFc5554E06F94e1Dd786Fd': '0x5', // Curve.fi tBTC/sbtcCrv
+  '0xd632f22692FaC7611d2AA1C0D552930D43CAEd3B': '0x11', // Curve.fi FRAX/3Crv
+  '0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c': '0x11', // Curve.fi alUSD/3Crv
 };
 
 // Array of Vyper tokens
@@ -114,7 +133,7 @@ async function balanceOf(tokenAddress: string, address: string) {
 }
 
 pools.forEach((pool) => {
-  describe('Convex', function () {
+  describe(`Convex: ${pool.symbol}`, function () {
     // --- Data ---
     let deployer: SignerWithAddress;
     let trigger: Contract;
@@ -162,18 +181,28 @@ pools.forEach((pool) => {
       // Get mainnet contract instances
       // We get the curve LP token addresses from reading storage slots, since they are not exposed with a getter
       const convex = <IConvexBooster>await ethers.getContractAt('IConvexBooster', convexAddress);
-      const poolId = pool.triggerParams[pool.triggerParams.length - 1];
-      const [curveLpTokenAddress] = await convex.poolInfo(poolId);
+      const [curveLpTokenAddress] = await convex.poolInfo(pool.poolId);
 
-      const crvLpToken = await ethers.getContractAt('ICrvToken', curveLpTokenAddress);
-      const crvMeta = await ethers.getContractAt('ICrvMeta', await crvLpToken.minter());
-      const crvBase = await ethers.getContractAt('ICrvBase', await crvMeta.base_pool());
+      // The meta pool token is the lp token
+      const crvMetaToken = await ethers.getContractAt('IERC20', curveLpTokenAddress);
 
-      const crvMetaTokenAddrRaw = await network.provider.send('eth_getStorageAt', [crvMeta.address, '0x5']);
-      const crvMetaToken = await ethers.getContractAt('IERC20', getAddress(`0x${crvMetaTokenAddrRaw.slice(26)}`));
+      // Check if this pool uses a Curve factory meta pool - Curve factory meta pools differ from traditional Curve pools
+      // in that the meta pool contract is also the LP token contract
+      if (pool.contract === 'Convex2') {
+        crvMeta = await ethers.getContractAt('ICrvMeta', curveLpTokenAddress);
 
-      const crvBaseTokenAddrRaw = await network.provider.send('eth_getStorageAt', [crvBase.address, '0x5']);
-      const crvBaseToken = await ethers.getContractAt('IERC20', getAddress(`0x${crvBaseTokenAddrRaw.slice(26)}`));
+        // Base pool cannot be determined programmatically for factory pools
+        if (pool.basePool) crvBase = await ethers.getContractAt('ICrvBase', pool.basePool);
+        else throw Error('Expected pool.basePool to be defined for the test pool');
+      } else {
+        const crvLpToken = await ethers.getContractAt('ICrvToken', curveLpTokenAddress);
+        crvMeta = await ethers.getContractAt('ICrvMeta', await crvLpToken.minter());
+        crvBase = await ethers.getContractAt('ICrvBase', await crvMeta.base_pool());
+      }
+
+      // The base token contract is the (1) index of the meta pool's coins(uint256 index) function
+      const crvBaseTokenAddr = await crvMeta.coins(1);
+      const crvBaseToken = await ethers.getContractAt('IERC20', crvBaseTokenAddr);
 
       // Deploy trigger
       const triggerArtifact = await artifacts.readArtifact(pool.contract);
@@ -183,6 +212,11 @@ pools.forEach((pool) => {
     }
 
     // --- Tests ---
+    before(async () => {
+      // Ensure mainnet is re-forked before test execution for each protection market to ensure storage slot state isolation
+      await reset();
+    });
+
     beforeEach(async () => {
       ({ deployer, trigger, crvMeta, crvBase, crvMetaToken, crvBaseToken } = await loadFixture(setupFixture));
     });
@@ -324,7 +358,7 @@ pools.forEach((pool) => {
 
       it('toggles trigger when convex totalSupply invariant is violated', async () => {
         await assertTriggerStatus(false);
-        const poolId = pool.triggerParams[pool.triggerParams.length - 1];
+        const poolId = pool.poolId;
         const convex = await ethers.getContractAt('IConvexBooster', convexAddress, deployer);
         const [_, convexTokenAddr] = await convex.poolInfo(poolId);
         const convexToken = await ethers.getContractAt('IERC20', convexTokenAddr, deployer);
