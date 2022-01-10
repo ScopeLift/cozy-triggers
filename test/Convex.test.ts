@@ -102,8 +102,8 @@ const tokenBalanceOfSlots = {
   '0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D': '0x66', // renBTC
   '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': '0x0', // Wrapped BTC
   '0x4F6296455F8d754c19821cF1EC8FeBF2cD456E67': '0x3', // Synth sBTC (this is the address of the sBTC storage contract, token address is 0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6)
-  '0xd632f22692FaC7611d2AA1C0D552930D43CAEd3B': '0xF', // Curve.fi FRAX/3Crv
-  '0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c': '0xF', // Curve.fi alUSD/3Crv
+  '0xd632f22692FaC7611d2AA1C0D552930D43CAEd3B': '0xf', // Curve.fi FRAX/3Crv
+  '0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c': '0xf', // Curve.fi alUSD/3Crv
 };
 
 const tokenTotalSupplySlots = {

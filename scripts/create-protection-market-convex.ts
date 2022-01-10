@@ -36,7 +36,6 @@ const cozyMultisig = '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b';
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;
 const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY as string, hre.ethers.provider);
-// const [signer] = await hre.ethers.getSigners(); // for deploying to hardhat
 const chainId = getChainId(hre);
 
 // STEP 1: TRIGGER CONTRACT SETUP
