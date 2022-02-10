@@ -21,14 +21,30 @@ const chainIds = {
   mainnet: 1,
   rinkeby: 4,
   ropsten: 3,
+  arbitrum: 42161,
+  arbitrumRinkeby: 421611,
+};
+
+const chainRpcUrls = {
+  mainnet: process.env.RPC_URL as string,
+  arbitrum: process.env.RPC_URL_ARBITRUM as string,
+};
+
+const forkingBlockNumbers = {
+  mainnet: 13735953,
+  arbitrum: 5670600,
 };
 
 // Ensure that we have all the environment variables we need.
 const privateKey = process.env.PRIVATE_KEY as string;
 if (!privateKey) throw new Error('Please set your PRIVATE_KEY in a .env file');
 
-const rpcUrl = process.env.RPC_URL as string;
-if (!rpcUrl) throw new Error('Please set your RPC_URL in a .env file');
+// The chain to be forked for hardhat - tests for this chain will be ran
+const testChainFork = process.env.TEST_CHAIN_FORK as keyof typeof chainRpcUrls;
+if (!testChainFork) throw new Error('Please set your TEST_CHAIN_FORK in a .env file');
+
+const rpcUrl = chainRpcUrls[testChainFork];
+if (!rpcUrl) throw new Error(`Please set your RPC_URL for ${testChainFork} in a .env file`);
 
 // Use the default hardhat mnemonic when on localhost
 const mnemonic = 'test test test test test test test test test test test junk';
@@ -38,7 +54,7 @@ function createNetworkConfig(network: keyof typeof chainIds): NetworkUserConfig 
   return {
     accounts: [privateKey],
     chainId: chainIds[network],
-    url: rpcUrl,
+    url: chainRpcUrls[network as keyof typeof chainRpcUrls],
   };
 }
 
@@ -49,9 +65,10 @@ const config: HardhatUserConfig = {
     hardhat: {
       accounts: { mnemonic },
       chainId: chainIds.hardhat,
-      forking: { url: rpcUrl, blockNumber: 13735953 },
+      forking: { url: rpcUrl, blockNumber: forkingBlockNumbers[testChainFork] },
     },
     mainnet: createNetworkConfig('mainnet'),
+    arbitrum: createNetworkConfig('arbitrum'),
   },
   paths: {
     artifacts: './artifacts',

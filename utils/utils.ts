@@ -9,6 +9,7 @@ import { network } from 'hardhat';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import hardhatConfig from '../hardhat.config';
 import mainnetDeployAddresses from '../deployments/mainnet.json';
+import arbitrumDeployAddresses from '../deployments/arbitrum.json';
 
 // Rename contract names from the verbose deploy names to something more concise
 const mainnetAddresses = {
@@ -29,8 +30,20 @@ const mainnetAddresses = {
   YearnProtectionMarket: '0x9affB6D8568cEfa2837d251b1553967430D1a5e5', // sample protection market deployed on mainnet
 };
 
+const arbitrumAddresses = {
+  ...mainnetAddresses, // Cozy contracts have the same addresses on arbitrum
+  DAI: arbitrumDeployAddresses.DAI,
+  USDC: arbitrumDeployAddresses.USDC,
+  WBTC: arbitrumDeployAddresses.WBTC,
+};
+
+const funderAddresses = {
+  1: '0x28C6c06298d514Db089934071355E5743bf21d60', // mainnet binance exchange account
+  42161: '0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D', // arbitrum binance hot wallet
+};
+
 // Mapping of chainId to contract addresses
-const address = { 1: mainnetAddresses };
+const address = { 1: mainnetAddresses, 42161: arbitrumAddresses };
 type ChainId = keyof typeof address;
 type ContractNames = keyof typeof mainnetAddresses;
 
@@ -63,6 +76,7 @@ export const getContractAddress = (name: string, chainId: number) => {
 export const getChainId = (hre: HardhatRuntimeEnvironment) => {
   const forkUrl = hre.config.networks.hardhat.forking?.url;
   if (!forkUrl) throw new Error('Fork URL not configured');
+  if (forkUrl.includes('arbitrum-mainnet')) return 42161;
   if (forkUrl.includes('mainnet')) return 1;
   if (forkUrl.includes('ropsten')) return 3;
   if (forkUrl.includes('rinkeby')) return 4;
@@ -83,12 +97,11 @@ export const getChainId = (hre: HardhatRuntimeEnvironment) => {
  * @param hre HardhatRuntimeEnvironment, used for getting chainID
  */
 export const fundAccount = async (tokenAddress: string, amount: string, to: string, hre: HardhatRuntimeEnvironment) => {
-  const chainId = getChainId(hre);
-  if (chainId !== 1) throw new Error('Unsupported network');
+  const chainId = getChainId(hre) as keyof typeof funderAddresses;
   const tokenAbi = ['function transfer(address,uint256) returns (bool)', 'function decimals() view returns (uint8)'];
 
-  // We impersonate the binance exchange account on mainnet as a source of tokens
-  const funderAddress = '0x28C6c06298d514Db089934071355E5743bf21d60';
+  // We impersonate an account on the chain as a source of tokens
+  const funderAddress = funderAddresses[chainId];
   await assertSufficientBalance(funderAddress, tokenAddress, amount, hre);
   await hre.network.provider.request({ method: 'hardhat_impersonateAccount', params: [funderAddress] });
   const signer = await hre.ethers.provider.getSigner(funderAddress);
