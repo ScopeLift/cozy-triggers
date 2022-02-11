@@ -1,15 +1,15 @@
-pragma solidity ^0.8.5;
+pragma solidity ^0.8.10;
 
-import "./interfaces/ICurvePool.sol";
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITrigger.sol";
+import "../shared/interfaces/ICurvePool.sol";
+import "../shared/interfaces/IERC20.sol";
+import "../shared/interfaces/ITrigger.sol";
 
 /**
- * @notice Defines a trigger that is toggled if any of the following conditions occur:
+ * @notice Defines a trigger for a Curve base pool that is toggled if any of the following conditions occur:
  *   1. Curve LP token balances are significantly lower than what the pool expects them to be
  *   2. Curve pool virtual price drops significantly
  */
-contract CurveThreeTokens is ITrigger {
+contract CurveThreeTokenBasePool is ITrigger {
   // --- Tokens ---
   // Underlying token addresses
   IERC20 internal immutable token0;
@@ -52,13 +52,12 @@ contract CurveThreeTokens is ITrigger {
   ) ITrigger(_name, _symbol, _description, _platformIds, _recipient) {
     curve = ICurvePool(_curve);
 
-    // immutables can't be read at construction, so we don't use `curve` in storage directly
-    token0 = IERC20(ICurvePool(_curve).coins(0));
-    token1 = IERC20(ICurvePool(_curve).coins(1));
-    token2 = IERC20(ICurvePool(_curve).coins(2));
+    token0 = IERC20(curve.coins(0));
+    token1 = IERC20(curve.coins(1));
+    token2 = IERC20(curve.coins(2));
 
     // Save current virtual price, to be compared during checks
-    lastVirtualPrice = ICurvePool(_curve).get_virtual_price();
+    lastVirtualPrice = curve.get_virtual_price();
   }
 
   // --- Trigger condition ---
@@ -67,19 +66,20 @@ contract CurveThreeTokens is ITrigger {
    * @dev Checks the Curve LP token balances and virtual price
    */
   function checkTriggerCondition() internal override returns (bool) {
-    // Read this blocks virtual price
-    uint256 _currentVirtualPrice = curve.get_virtual_price();
+    // Internal balance vs. true balance check
+    if (checkCurveBalances()) return true;
 
-    // Check trigger conditions. We could check one at a time and return as soon as one is true, but it is convenient
-    // to have the data that caused the trigger saved into the state, so we don't do that
-    bool _statusVirtualPrice = _currentVirtualPrice < ((lastVirtualPrice * virtualPriceTol) / scale);
-    bool _statusBalances = checkCurveBalances();
+    // Pool virtual price check
+    try curve.get_virtual_price() returns (uint256 _newVirtualPrice) {
+      bool _triggerVpPool = _newVirtualPrice < ((lastVirtualPrice * virtualPriceTol) / scale);
+      if (_triggerVpPool) return true;
+      lastVirtualPrice = _newVirtualPrice; // if not triggered, save off the virtual price for the next call
+    } catch {
+      return true;
+    }
 
-    // Save the new data
-    lastVirtualPrice = _currentVirtualPrice;
-
-    // Return status
-    return _statusVirtualPrice || _statusBalances;
+    // Trigger condition has not occured
+    return false;
   }
 
   /**

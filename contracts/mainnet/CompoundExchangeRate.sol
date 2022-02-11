@@ -1,7 +1,7 @@
 pragma solidity ^0.8.5;
 
-import "./interfaces/ICToken.sol";
-import "./interfaces/ITrigger.sol";
+import "../shared/interfaces/ICToken.sol";
+import "../shared/interfaces/ITrigger.sol";
 
 /**
  * @notice Defines a trigger that is toggled if the Compound exchange rate decreases between consecutive checks. Under

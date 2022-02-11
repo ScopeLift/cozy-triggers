@@ -4,7 +4,8 @@ import { expect } from 'chai';
 import type { BigNumber, BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrv3Crypto, IERC20 } from '../typechain';
+import { MockCozyToken, IYVaultV2, ICurvePool, YearnCrv3Crypto, IERC20 } from '../../typechain';
+import { reset } from '../../utils/utils';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;
@@ -130,6 +131,11 @@ describe('YearnCrv3Crypto', function () {
   }
 
   // --- Tests ---
+  before(async () => {
+    // Ensure mainnet is re-forked before test execution to ensure storage slot state isolation
+    await reset();
+  });
+
   beforeEach(async () => {
     ({ deployer, yCrv3Crypto, crv3Crypto, crvToken, trigger, triggerParams } = await loadFixture(setupFixture));
   });

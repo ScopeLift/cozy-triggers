@@ -1,9 +1,9 @@
 pragma solidity ^0.8.5;
 
-import "./interfaces/ICurvePool.sol";
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITrigger.sol";
-import "./interfaces/IYVaultV2.sol";
+import "../shared/interfaces/ICurvePool.sol";
+import "../shared/interfaces/IERC20.sol";
+import "../shared/interfaces/ITrigger.sol";
+import "../shared/interfaces/IYVaultV2.sol";
 
 /**
  * @notice Defines a trigger that is toggled if any of the following conditions occur:
