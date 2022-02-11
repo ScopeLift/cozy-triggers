@@ -6,8 +6,8 @@ import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
 import { Contract, ContractFactory, utils } from 'ethers';
 import chalk from 'chalk';
-import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
-import comptrollerAbi from '../abi/Comptroller.json';
+import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../../utils/utils'; // prettier-ignore
+import comptrollerAbi from '../../abi/Comptroller.json';
 
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;

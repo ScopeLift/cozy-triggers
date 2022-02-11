@@ -1,13 +1,13 @@
 /**
- * @notice Deploys the `YearnCrvTwoTokens` trigger and creates a protection market
+ * @notice Deploys the `YearnCrv3Crypto` trigger and creates a protection market
  */
 
 import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
 import { Contract, ContractFactory, utils } from 'ethers';
 import chalk from 'chalk';
-import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
-import comptrollerAbi from '../abi/Comptroller.json';
+import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../../utils/utils'; // prettier-ignore
+import comptrollerAbi from '../../abi/Comptroller.json';
 
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;
@@ -16,13 +16,13 @@ const chainId = getChainId(hre);
 const { AddressZero } = hre.ethers.constants;
 
 // STEP 1: TRIGGER CONTRACT SETUP
-const name = 'Yearn V2 Curve USDN Trigger'; // name
-const symbol = 'yCrvUSDN-TRIG'; // symbol
-const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve USDN pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve USDN pool are more than 50% lower than the true balances"; // prettier-ignore
+const name = 'Yearn Curve 3Crypto Trigger'; // name
+const symbol = 'yCRV-3CRYPTO-TRIG'; // symbol
+const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve 3Crypto pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve 3Crypto pool are more than 50% lower than the true balances"; // prettier-ignore
 const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
-const yearnVaultAddress = '0x3B96d491f067912D18563d56858Ba7d6EC67a6fa'; // mainnet Yearn v2 vault
-const curvePoolAddress = '0x0f9cb53Ebe405d49A0bbdBD291A65Ff571bC83e1'; // mainnet Curve pool
+const yearnVaultAddress = '0xE537B5cc158EB71037D4125BDD7538421981E6AA'; // mainnet Yearn crv3Crypto vault
+const curve3CryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve 3Crypto pool
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
 // For this step, see the ITrigger.sol and MockTrigger.sol examples and the corresponding documentation
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   // VERIFICATION
   // Verify the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
-  console.log('  Deploying protection market for:   Yearn Curve USDN');
+  console.log('  Deploying protection market for:   Yearn Crv3Crypto');
   console.log(`  Deployer address:                  ${signer.address}`);
   console.log(`  Deploying to network:              ${hre.network.name}`);
 
@@ -54,12 +54,12 @@ async function main(): Promise<void> {
 
   // Deploy the interest rate model, configured with the following parameters:
   //   - 2% base borrow rate at zero utilization
-  //   - Linear increase from 2% to 12% borrow rate at 80% utilization
-  //   - Linear increase from 12% to 78% borrow rate at 100% utilization
+  //   - Linear increase from 2% to 18% borrow rate at 80% utilization
+  //   - Linear increase from 18% to 121% borrow rate at 100% utilization
   const constructorArgs = [
     '20000000000000000', // baseRatePerYear of 2% = 2e16
-    '100000000000000000', // multiplierPerYear of 10% = 1e17 gives 12% borrow rate at kink
-    '3300000000000000000', // jumpMultiplierPerYear of 330% = 3.3e17 gives 78% borrow rate at 100% utilization
+    '160000000000000000', // multiplierPerYear of 16% = 1.6e17 gives 18% borrow rate at kink
+    '5150000000000000000', // jumpMultiplierPerYear of 515% = 5.15e18 gives 121% borrow rate at 100% utilization
     '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
     '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
   ];
@@ -69,36 +69,36 @@ async function main(): Promise<void> {
 
   // DEPLOY TRIGGER
   // Get instance of the Trigger ContractFactory with our signer attached
-  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrvTwoTokens', signer);
+  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrv3Crypto', signer);
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
-  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curvePoolAddress];
+  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curve3CryptoAddress];
   const trigger: Contract = await triggerFactory.deploy(...triggerParams);
   await trigger.deployed();
-  logSuccess(`YearnCrvTwoTokens trigger deployed to ${trigger.address}`);
+  logSuccess(`YearnCrv3Crypto trigger deployed to ${trigger.address}`);
 
   // VERIFY UNDERLYING
-  // Let's choose USDC as the underlying, so first we need to check if there's a USDC Money Market.
+  // Let's choose ETH as the underlying, so first we need to check if there's a ETH Money Market.
   // We know that Money Markets have a trigger address of the zero address, so we use that to query the Comptroller
   // for the Money Market address
-  const usdcAddress = getContractAddress('USDC', chainId);
+  const ethAddress = getContractAddress('ETH', chainId);
   const comptrollerAddress = getContractAddress('Comptroller', chainId);
   const comptroller = new Contract(comptrollerAddress, comptrollerAbi, signer); // connect signer for sending transactions
-  const cozyEthAddress = await comptroller.getCToken(usdcAddress, AddressZero);
+  const cozyEthAddress = await comptroller.getCToken(ethAddress, AddressZero);
 
   // If the returned address is the zero address, a money market does not exist and we cannot deploy a protection
-  // market with USDC as the underlying
+  // market with ETH as the underlying
   if (cozyEthAddress === AddressZero) {
-    logFailure('No USDC Money Market exists. Exiting script');
+    logFailure('No ETH Money Market exists. Exiting script');
     return;
   }
-  logSuccess(`Safe to continue: Found USDC Money Market at ${cozyEthAddress}`);
+  logSuccess(`Safe to continue: Found ETH Money Market at ${cozyEthAddress}`);
 
   // DEPLOY PROTECTION MARKET
-  // If we're here, a USDC Money Market exists, so it's safe to create our new Protection Market
+  // If we're here, a ETH Money Market exists, so it's safe to create our new Protection Market
   const overrides = { gasPrice: await getGasPrice() };
   const tx = await comptroller['deployProtectionMarket(address,address,address)'](
-    usdcAddress,
+    ethAddress,
     trigger.address,
     irModel.address,
     overrides

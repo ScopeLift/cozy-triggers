@@ -41,7 +41,7 @@ if (!privateKey) throw new Error('Please set your PRIVATE_KEY in a .env file');
 
 // The chain to be forked for hardhat - tests for this chain will be ran
 // A default is set so that we don't have to set this variable when using hardhat for non-test/forking purposes
-const testChainFork = process.env.TEST_CHAIN_FORK as keyof typeof chainRpcUrls ?? "mainnet";
+const testChainFork = (process.env.TEST_CHAIN_FORK as keyof typeof chainRpcUrls) ?? 'mainnet';
 
 const testRpcUrl = chainRpcUrls[testChainFork];
 if (!testRpcUrl) throw new Error(`Please set your RPC_URL for ${testChainFork} in a .env file`);

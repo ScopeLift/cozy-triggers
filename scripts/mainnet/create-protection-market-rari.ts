@@ -1,34 +1,70 @@
 /**
- * @notice Deploys the `YearnCrv3Crypto` trigger and creates a protection market
+ * @notice Deploys the `RariSharePrice` trigger and creates a protection market
+ * @dev To deploy, you must define the RARI_VAULT environment variable and set it equal to one
+ * of the keys of the `vaults` variable, such as usdc or dai. Sample deploy commands are below:
+ *
+ *     RARI_VAULT=usdc yarn hardhat run scripts/create-protection-market-rari.ts
+ *     RARI_VAULT=dai yarn hardhat run scripts/create-protection-market-rari.ts --network mainnet
  */
 
 import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
 import { Contract, ContractFactory, utils } from 'ethers';
 import chalk from 'chalk';
-import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
-import comptrollerAbi from '../abi/Comptroller.json';
+import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../../utils/utils'; // prettier-ignore
+import comptrollerAbi from '../../abi/Comptroller.json';
+
+// Constants
+const { AddressZero } = hre.ethers.constants;
+const twoE16 = '20000000000000000'; // 2%
+const eightE17 = '800000000000000000'; // 80%
+const cozyMultisig = '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b';
 
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;
 const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY as string, hre.ethers.provider);
 const chainId = getChainId(hre);
-const { AddressZero } = hre.ethers.constants;
 
 // STEP 1: TRIGGER CONTRACT SETUP
-const name = 'Yearn Curve 3Crypto Trigger'; // name
-const symbol = 'yCRV-3CRYPTO-TRIG'; // symbol
-const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve 3Crypto pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve 3Crypto pool are more than 50% lower than the true balances"; // prettier-ignore
-const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
+const platformIds = [10];
+// const recipient = signer.address;
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
-const yearnVaultAddress = '0xE537B5cc158EB71037D4125BDD7538421981E6AA'; // mainnet Yearn crv3Crypto vault
-const curve3CryptoAddress = '0xD51a44d3FaE010294C616388b506AcdA1bfAAE46'; // mainnet Curve 3Crypto pool
+
+// Mainnet parameters for various Rari vaults
+const vaults = {
+  usdc: {
+    name: 'Rari USDC Trigger',
+    symbol: 'rariUSDC-TRIG',
+    description : "Triggers when the Rari USDC vault share price decreases by more than 50% between consecutive checks.", // prettier-ignore
+    vaultAddress: '0xC6BF8C8A55f77686720E0a88e2Fd1fEEF58ddf4a',
+    irParams: [twoE16, '200000000000000000', '6150000000000000000', eightE17], // JumpRateModelV2 interest rate model constructor parameters
+  },
+  dai: {
+    name: 'Rari DAI Trigger',
+    symbol: 'rariDAI-TRIG',
+    description : "Triggers when the Rari DAI vault share price decreases by more than 50% between consecutive checks.", // prettier-ignore
+    vaultAddress: '0xB465BAF04C087Ce3ed1C266F96CA43f4847D9635', // TODO set this address
+    irParams: [twoE16, '170000000000000000', '5300000000000000000', eightE17], // JumpRateModelV2 interest rate model constructor parameters
+  },
+};
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
 // For this step, see the ITrigger.sol and MockTrigger.sol examples and the corresponding documentation
 
 // STEP 3: PROTECTION MARKET DEPLOYMENT
 async function main(): Promise<void> {
+  // Verify a valid vault was selected
+  const vault = process.env.RARI_VAULT as string;
+  if (!vault) {
+    const msg = "Please define the 'RARI_VAULT' environment variable. Keys of the `vaults` variable are valid values";
+    throw new Error(msg);
+  }
+  if (!Object.keys(vaults).includes(vault)) {
+    throw new Error(`Vault '${vault}'' is not a key in the \`vaults\` object`);
+  }
+  const { name, symbol, description, vaultAddress, irParams } = vaults[vault as keyof typeof vaults];
+
+  // Verify recipient address was set properly
   if (!utils.isAddress(recipient)) throw new Error('\n\n**** Please set the recipient address on line 23 ****\n');
 
   // Compile contracts to make sure we're using the latest version of the trigger contracts
@@ -37,7 +73,7 @@ async function main(): Promise<void> {
   // VERIFICATION
   // Verify the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
-  console.log('  Deploying protection market for:   Yearn Crv3Crypto');
+  console.log(`  Deploying protection market for:   Rari ${vault.toUpperCase()} Vault`);
   console.log(`  Deployer address:                  ${signer.address}`);
   console.log(`  Deploying to network:              ${hre.network.name}`);
 
@@ -52,30 +88,21 @@ async function main(): Promise<void> {
   // Get instance of the Trigger ContractFactory with our signer attached
   const irModelFactory: ContractFactory = await hre.ethers.getContractFactory('JumpRateModelV2', signer);
 
-  // Deploy the interest rate model, configured with the following parameters:
-  //   - 2% base borrow rate at zero utilization
-  //   - Linear increase from 2% to 18% borrow rate at 80% utilization
-  //   - Linear increase from 18% to 121% borrow rate at 100% utilization
-  const constructorArgs = [
-    '20000000000000000', // baseRatePerYear of 2% = 2e16
-    '160000000000000000', // multiplierPerYear of 16% = 1.6e17 gives 18% borrow rate at kink
-    '5150000000000000000', // jumpMultiplierPerYear of 515% = 5.15e18 gives 121% borrow rate at 100% utilization
-    '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
-    '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
-  ];
-  const irModel: Contract = await irModelFactory.deploy(...constructorArgs);
+  // Deploy the interest rate model
+  const irModelConstructorArgs = [...irParams, cozyMultisig];
+  const irModel: Contract = await irModelFactory.deploy(...irModelConstructorArgs);
   await irModel.deployed();
   logSuccess(`Interest rate model deployed to ${irModel.address}`);
 
   // DEPLOY TRIGGER
   // Get instance of the Trigger ContractFactory with our signer attached
-  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrv3Crypto', signer);
+  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('RariSharePrice', signer);
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
-  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curve3CryptoAddress];
+  const triggerParams = [name, symbol, description, platformIds, recipient, vaultAddress];
   const trigger: Contract = await triggerFactory.deploy(...triggerParams);
   await trigger.deployed();
-  logSuccess(`YearnCrv3Crypto trigger deployed to ${trigger.address}`);
+  logSuccess(`RariSharePrice trigger deployed to ${trigger.address}`);
 
   // VERIFY UNDERLYING
   // Let's choose ETH as the underlying, so first we need to check if there's a ETH Money Market.
