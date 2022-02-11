@@ -1,13 +1,13 @@
 /**
- * @notice Deploys the `SaddleThreeTokens` trigger and creates a protection market
+ * @notice Deploys the `YearnCrvTwoTokens` trigger and creates a protection market
  */
 
 import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
 import { Contract, ContractFactory, utils } from 'ethers';
 import chalk from 'chalk';
-import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
-import comptrollerAbi from '../abi/Comptroller.json';
+import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../../utils/utils'; // prettier-ignore
+import comptrollerAbi from '../../abi/Comptroller.json';
 
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;
@@ -16,12 +16,13 @@ const chainId = getChainId(hre);
 const { AddressZero } = hre.ethers.constants;
 
 // STEP 1: TRIGGER CONTRACT SETUP
-const name = 'Saddle alETH Trigger'; // name
-const symbol = 'saddlealETH-TRIG'; // symbol
-const description = "Triggers when the Saddle alETH pool virtual price decreases by more than 50% between consecutive checks, or when the internal balances tracked in the Saddle alETH pool are more than 50% lower than the true balances"; // prettier-ignore
-const platformIds = [7]; // platform ID for saddle
+const name = 'Yearn V2 Curve TBTC Trigger'; // name
+const symbol = 'yCrvTBTC-TRIG'; // symbol
+const description = "Triggers when the Yearn vault share price decreases by more than 50% between consecutive checks, the Curve tBTC pool's virtual price decreases by more than 50% between consecutive checks, or the internal balances tracked in the Curve tBTC pool are more than 50% lower than the true balances"; // prettier-ignore
+const platformIds = [1, 3]; // platform IDs for Yearn and Curve, respectively
 const recipient = '0xSetRecipientAddressHere'; // subsidy recipient
-const saddlePoolAddress = '0xa6018520EAACC06C30fF2e1B3ee2c7c22e64196a'; // mainnet Saddle pool
+const yearnVaultAddress = '0x23D3D0f1c697247d5e0a9efB37d8b0ED0C464f7f'; // mainnet Yearn v2 vault
+const curvePoolAddress = '0xC25099792E9349C7DD09759744ea681C7de2cb66'; // mainnet Curve pool
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
 // For this step, see the ITrigger.sol and MockTrigger.sol examples and the corresponding documentation
@@ -36,7 +37,7 @@ async function main(): Promise<void> {
   // VERIFICATION
   // Verify the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
-  console.log('  Deploying protection market for:   Saddle alETH Pool');
+  console.log('  Deploying protection market for:   Yearn Curve TBTC');
   console.log(`  Deployer address:                  ${signer.address}`);
   console.log(`  Deploying to network:              ${hre.network.name}`);
 
@@ -51,11 +52,14 @@ async function main(): Promise<void> {
   // Get instance of the Trigger ContractFactory with our signer attached
   const irModelFactory: ContractFactory = await hre.ethers.getContractFactory('JumpRateModelV2', signer);
 
-  // Deploy the interest rate model
+  // Deploy the interest rate model, configured with the following parameters:
+  //   - 3% base borrow rate at zero utilization
+  //   - Linear increase from 3% to 9% borrow rate at 80% utilization
+  //   - Linear increase from 9% to 85% borrow rate at 100% utilization
   const constructorArgs = [
     '20000000000000000', // baseRatePerYear of 2% = 2e16
-    '80000000000000000', // multiplierPerYear of 8% = 0.8e17 gives 10% borrow rate at kink
-    '2750000000000000000', // jumpMultiplierPerYear of 275% = 2.75e17 gives 65% borrow rate at 100% utilization
+    '160000000000000000', // multiplierPerYear of 16% = 1.6e17 gives 18% borrow rate at kink
+    '5000000000000000000', // jumpMultiplierPerYear of 500% = 5e18 gives 118% borrow rate at 100% utilization
     '800000000000000000', // kink of 0.8 = 8e17 = sets the model kink at 80% utilization
     '0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b', // Cozy multisig
   ];
@@ -65,36 +69,36 @@ async function main(): Promise<void> {
 
   // DEPLOY TRIGGER
   // Get instance of the Trigger ContractFactory with our signer attached
-  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('SaddleThreeTokens', signer);
+  const triggerFactory: ContractFactory = await hre.ethers.getContractFactory('YearnCrvTwoTokens', signer);
 
   // Deploy the trigger contract (last constructor parameter is specific to the mock trigger contract)
-  const triggerParams = [name, symbol, description, platformIds, recipient, saddlePoolAddress];
+  const triggerParams = [name, symbol, description, platformIds, recipient, yearnVaultAddress, curvePoolAddress];
   const trigger: Contract = await triggerFactory.deploy(...triggerParams);
   await trigger.deployed();
-  logSuccess(`SaddleThreeTokens trigger deployed to ${trigger.address}`);
+  logSuccess(`YearnCrvTwoTokens trigger deployed to ${trigger.address}`);
 
   // VERIFY UNDERLYING
-  // Let's choose ETH as the underlying, so first we need to check if there's a ETH Money Market.
+  // Let's choose WBTC as the underlying, so first we need to check if there's a WBTC Money Market.
   // We know that Money Markets have a trigger address of the zero address, so we use that to query the Comptroller
   // for the Money Market address
-  const ethAddress = getContractAddress('ETH', chainId);
+  const wbtcAddress = getContractAddress('WBTC', chainId);
   const comptrollerAddress = getContractAddress('Comptroller', chainId);
   const comptroller = new Contract(comptrollerAddress, comptrollerAbi, signer); // connect signer for sending transactions
-  const cozyEthAddress = await comptroller.getCToken(ethAddress, AddressZero);
+  const cozyEthAddress = await comptroller.getCToken(wbtcAddress, AddressZero);
 
   // If the returned address is the zero address, a money market does not exist and we cannot deploy a protection
-  // market with ETH as the underlying
+  // market with WBTC as the underlying
   if (cozyEthAddress === AddressZero) {
-    logFailure('No ETH Money Market exists. Exiting script');
+    logFailure('No WBTC Money Market exists. Exiting script');
     return;
   }
-  logSuccess(`Safe to continue: Found ETH Money Market at ${cozyEthAddress}`);
+  logSuccess(`Safe to continue: Found WBTC Money Market at ${cozyEthAddress}`);
 
   // DEPLOY PROTECTION MARKET
-  // If we're here, a ETH Money Market exists, so it's safe to create our new Protection Market
+  // If we're here, a WBTC Money Market exists, so it's safe to create our new Protection Market
   const overrides = { gasPrice: await getGasPrice() };
   const tx = await comptroller['deployProtectionMarket(address,address,address)'](
-    ethAddress,
+    wbtcAddress,
     trigger.address,
     irModel.address,
     overrides

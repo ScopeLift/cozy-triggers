@@ -9,12 +9,12 @@ const addresses: Addresses = {
     usdt: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
     wbtc: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
     weth: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
-  }
-}
+  },
+};
 
 const slots: Slots = {
   tokensBalanceOf: { usdt: '0x2', wbtc: '0x0', weth: '0x3' },
   curveTokenTotalSupply: '0x4',
-}
+};
 
 genericCurveThreeTokenBasePoolTests(addresses, slots);

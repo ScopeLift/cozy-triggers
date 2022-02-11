@@ -8,8 +8,8 @@ import hre from 'hardhat';
 import '@nomiclabs/hardhat-ethers';
 import { Contract, ContractFactory } from 'ethers';
 import chalk from 'chalk';
-import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../utils/utils'; // prettier-ignore
-import comptrollerAbi from '../abi/Comptroller.json';
+import { getChainId, getContractAddress, getGasPrice, logSuccess, logFailure, findLog, waitForInput } from '../../utils/utils'; // prettier-ignore
+import comptrollerAbi from '../../abi/Comptroller.json';
 
 // STEP 0: ENVIRONMENT SETUP
 const provider = hre.ethers.provider;
@@ -18,7 +18,7 @@ const chainId = getChainId(hre);
 const { AddressZero } = hre.ethers.constants;
 
 // STEP 1: TRIGGER CONTRACT SETUP
-const yearnTriggerAddress = '0x02E57c5800a345Fe97d73fA8bB72B948E19aA499'; // already deployed
+const compoundTriggerAddress = '0xF986F3C3B0C9df873d3ccc8cc2D895a16148c84C'; // already deployed
 
 // STEP 2: TRIGGER CONTRACT DEVELOPMENT
 // For this step, see the ITrigger.sol and MockTrigger.sol examples and the corresponding documentation
@@ -31,8 +31,8 @@ async function main(): Promise<void> {
   // VERIFICATION
   // Verify sure the user is ok with the provided inputs
   console.log(chalk.bold.yellow('\nPLEASE VERIFY THE BELOW PARAMETERS\n'));
-  console.log('  Deploying protection market for:   Yearn');
-  console.log(`  Using pre-deployed trigger:        ${yearnTriggerAddress}`);
+  console.log('  Deploying protection market for:   Compound');
+  console.log(`  Using pre-deployed trigger:        ${compoundTriggerAddress}`);
   console.log(`  Deployer address:                  ${signer.address}`);
   console.log(`  Deploying to network:              ${hre.network.name}`);
 
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
 
   // If we're here, a USDC Money Market exists, so it's safe to create our new Protection Market
   const overrides = { gasPrice: await getGasPrice() };
-  const tx = await comptroller['deployProtectionMarket(address,address)'](usdcAddress, yearnTriggerAddress, overrides);
+  const tx = await comptroller['deployProtectionMarket(address,address)'](usdcAddress, compoundTriggerAddress, overrides); // prettier-ignore
   console.log(`Creating Protection Market in transaction ${tx.hash}`);
 
   // This should emit a ProtectionMarketListed event on success, so let's check for that event. If not found, this

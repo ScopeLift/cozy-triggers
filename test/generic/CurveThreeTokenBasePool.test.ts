@@ -11,21 +11,21 @@ export interface Addresses {
   curve: {
     curve3CryptoAddress: string;
     curveTokenAddress: string;
-  },
+  };
   tokens: {
-    usdt: string,
-    wbtc: string,
-    weth: string
-  }
+    usdt: string;
+    wbtc: string;
+    weth: string;
+  };
 }
 
 export interface Slots {
   tokensBalanceOf: {
-    usdt: string,
-    wbtc: string,
-    weth: string
-  },
-  curveTokenTotalSupply: string
+    usdt: string;
+    wbtc: string;
+    weth: string;
+  };
+  curveTokenTotalSupply: string;
 }
 
 export const genericCurveThreeTokenBasePoolTests = (addresses: Addresses, slots: Slots) => {
@@ -133,7 +133,9 @@ export const genericCurveThreeTokenBasePoolTests = (addresses: Addresses, slots:
       ];
 
       const CurveThreeTokenBasePoolArtifact = await artifacts.readArtifact('CurveThreeTokenBasePool');
-      const trigger = <CurveThreeTokenBasePool>await deployContract(deployer, CurveThreeTokenBasePoolArtifact, triggerParams);
+      const trigger = <CurveThreeTokenBasePool>(
+        await deployContract(deployer, CurveThreeTokenBasePoolArtifact, triggerParams)
+      );
 
       return { deployer, crv3Crypto, crvToken, trigger, triggerParams };
     }
@@ -301,5 +303,4 @@ export const genericCurveThreeTokenBasePoolTests = (addresses: Addresses, slots:
       });
     });
   });
-
-}
+};
