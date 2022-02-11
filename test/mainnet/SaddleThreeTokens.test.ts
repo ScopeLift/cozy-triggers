@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import type { BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, ISaddlePool, YearnCrvTwoTokens, IERC20 } from '../typechain';
+import { MockCozyToken, ISaddlePool, YearnCrvTwoTokens, IERC20 } from '../../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;

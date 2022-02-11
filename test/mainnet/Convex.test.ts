@@ -6,8 +6,8 @@ import { Contract } from '@ethersproject/contracts';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { smock } from '@defi-wonderland/smock';
-import { IConvexBooster, MockCozyToken } from '../typechain';
-import { reset } from '../utils/utils';
+import { reset } from '../../utils/utils';
+import { IConvexBooster, MockCozyToken } from '../../typechain';
 
 // --- Constants and extracted methods ---
 const { deployContract, loadFixture } = waffle;

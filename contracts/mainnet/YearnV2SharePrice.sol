@@ -1,7 +1,7 @@
 pragma solidity ^0.8.5;
 
-import "./interfaces/IYVaultV2.sol";
-import "./interfaces/ITrigger.sol";
+import "../shared/interfaces/IYVaultV2.sol";
+import "../shared/interfaces/ITrigger.sol";
 
 /**
  * @notice Defines a trigger that is toggled if the price per share for the V2 yVault decreases between consecutive

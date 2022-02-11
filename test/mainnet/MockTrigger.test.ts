@@ -8,7 +8,7 @@
 import { artifacts, ethers, waffle } from 'hardhat';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, MockTrigger } from '../typechain';
+import { MockCozyToken, MockTrigger } from '../../typechain';
 const { deployContract } = waffle;
 
 describe('MockTrigger', function () {

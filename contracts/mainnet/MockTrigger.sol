@@ -1,6 +1,6 @@
 pragma solidity ^0.8.5;
 
-import "./interfaces/ITrigger.sol";
+import "../shared/interfaces/ITrigger.sol";
 
 contract MockTrigger is ITrigger {
   /// @notice If true, checkAndToggleTrigger will toggle the trigger on its next call

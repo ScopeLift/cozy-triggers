@@ -40,11 +40,11 @@ const privateKey = process.env.PRIVATE_KEY as string;
 if (!privateKey) throw new Error('Please set your PRIVATE_KEY in a .env file');
 
 // The chain to be forked for hardhat - tests for this chain will be ran
-const testChainFork = process.env.TEST_CHAIN_FORK as keyof typeof chainRpcUrls;
-if (!testChainFork) throw new Error('Please set your TEST_CHAIN_FORK in a .env file');
+// A default is set so that we don't have to set this variable when using hardhat for non-test/forking purposes
+const testChainFork = process.env.TEST_CHAIN_FORK as keyof typeof chainRpcUrls ?? "mainnet";
 
-const rpcUrl = chainRpcUrls[testChainFork];
-if (!rpcUrl) throw new Error(`Please set your RPC_URL for ${testChainFork} in a .env file`);
+const testRpcUrl = chainRpcUrls[testChainFork];
+if (!testRpcUrl) throw new Error(`Please set your RPC_URL for ${testChainFork} in a .env file`);
 
 // Use the default hardhat mnemonic when on localhost
 const mnemonic = 'test test test test test test test test test test test junk';
@@ -65,7 +65,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       accounts: { mnemonic },
       chainId: chainIds.hardhat,
-      forking: { url: rpcUrl, blockNumber: forkingBlockNumbers[testChainFork] },
+      forking: { url: testRpcUrl, blockNumber: forkingBlockNumbers[testChainFork] },
     },
     mainnet: createNetworkConfig('mainnet'),
     arbitrum: createNetworkConfig('arbitrum'),
@@ -83,7 +83,7 @@ const config: HardhatUserConfig = {
     compilers: [
       {
         // Used for triggers
-        version: '0.8.9',
+        version: '0.8.10',
         settings: { metadata: { bytecodeHash: 'none' }, optimizer: { enabled: true, runs: 999999 } },
       },
       {

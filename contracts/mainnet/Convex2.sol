@@ -1,8 +1,8 @@
 pragma solidity ^0.8.9;
 
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITrigger.sol";
-import "./interfaces/IConvexBooster.sol";
+import "../shared/interfaces/IERC20.sol";
+import "../shared/interfaces/ITrigger.sol";
+import "../shared/interfaces/IConvexBooster.sol";
 
 interface ICrvPool {
   function balances(uint256 index) external view returns (uint256);

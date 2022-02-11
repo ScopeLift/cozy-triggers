@@ -1,8 +1,8 @@
 pragma solidity ^0.8.6;
 
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITrigger.sol";
-import "./interfaces/IRibbonVaultV2.sol";
+import "../shared/interfaces/IERC20.sol";
+import "../shared/interfaces/ITrigger.sol";
+import "../shared/interfaces/IRibbonVaultV2.sol";
 
 /**
  * @notice Defines a trigger that is toggled if any of the following conditions occur:

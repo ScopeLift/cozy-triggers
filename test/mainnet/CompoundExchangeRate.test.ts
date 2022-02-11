@@ -1,15 +1,15 @@
 import { artifacts, ethers, waffle } from 'hardhat';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
-import { MockCozyToken, MockYVaultV2, YearnV2SharePrice } from '../typechain';
+import { MockCozyToken, MockCToken, CompoundExchangeRate } from '../../typechain';
 
 const { deployContract } = waffle;
-const { parseUnits } = ethers.utils;
+const { formatBytes32String } = ethers.utils;
 
-describe('YearnV2SharePrice', function () {
+describe('CompoundExchangeRate', function () {
   let deployer: SignerWithAddress, recipient: SignerWithAddress;
-  let mockYUsdc: MockYVaultV2;
-  let trigger: YearnV2SharePrice;
+  let mockCUsdc: MockCToken;
+  let trigger: CompoundExchangeRate;
   let triggerParams: (string | number[])[] = []; // trigger params deployment parameters
 
   before(async () => {
@@ -17,22 +17,21 @@ describe('YearnV2SharePrice', function () {
   });
 
   beforeEach(async () => {
-    // Deploy Mock yVault
-    const mockYVaultY2Artifact = await artifacts.readArtifact('MockYVaultV2');
-    mockYUsdc = <MockYVaultV2>await deployContract(deployer, mockYVaultY2Artifact);
+    // Deploy Mock CToken
+    const mockCTokenArtifact = await artifacts.readArtifact('MockCToken');
+    mockCUsdc = <MockCToken>await deployContract(deployer, mockCTokenArtifact);
 
-    // Deploy YearnV2SharePrice trigger
+    // Deploy  CompoundExchangeRate trigger
     triggerParams = [
-      'Yearn USDC V2 Vault Share Price Trigger', // name
-      'yUSDC-V2-SP-TRIG', // symbol
-      'Triggers when the Yearn USDC V2 vault share price decreases', // description
-      [1], // platform ID for Yearn
-      recipient.address, // TODO set subsidy recipient
-      mockYUsdc.address, // TODO set address of the yVault market this trigger checks
+      'Compound Exchange Rate Trigger', // name
+      'COMP-ER-TRIG', // symbol
+      'Triggers when the Compound exchange rate decreases', // description
+      [4], // platform ID for Compound
+      recipient.address, // subsidy recipient
+      mockCUsdc.address, // address of the Compound CToken market this trigger checks
     ];
-
-    const YearnV2SharePriceArtifact = await artifacts.readArtifact('YearnV2SharePrice');
-    trigger = <YearnV2SharePrice>await deployContract(deployer, YearnV2SharePriceArtifact, triggerParams);
+    const compoundExchangeRateArtifact = await artifacts.readArtifact('CompoundExchangeRate');
+    trigger = <CompoundExchangeRate>await deployContract(deployer, compoundExchangeRateArtifact, triggerParams);
   });
 
   describe('Deployment', () => {
@@ -44,7 +43,7 @@ describe('YearnV2SharePrice', function () {
       expect(platformIds).to.deep.equal(triggerParams[3]); // use `.deep.equal` to compare array equality
       expect(await trigger.recipient()).to.equal(triggerParams[4]);
       expect(await trigger.market()).to.equal(triggerParams[5]);
-      expect(await trigger.tolerance()).to.equal(parseUnits('0.5', 18));
+      expect(await trigger.tolerance()).to.equal('10000');
     });
   });
 
@@ -58,7 +57,7 @@ describe('YearnV2SharePrice', function () {
     it('toggles trigger when called on a broken market', async () => {
       expect(await trigger.isTriggered()).to.be.false;
 
-      await mockYUsdc.set(1);
+      await mockCUsdc.set(formatBytes32String('exchangeRateStored'), 1);
       expect(await trigger.isTriggered()).to.be.false; // trigger not updated yet, so still expect false
 
       const tx = await trigger.checkAndToggleTrigger();
@@ -73,36 +72,36 @@ describe('YearnV2SharePrice', function () {
       const mockCozyToken = <MockCozyToken>await deployContract(deployer, mockCozyTokenArtifact, [trigger.address]);
       expect(await mockCozyToken.isTriggered()).to.be.false;
 
-      // Break the yVault
-      await mockYUsdc.set(1);
+      // Break the CToken
+      await mockCUsdc.set(formatBytes32String('exchangeRateStored'), 1);
       await mockCozyToken.checkAndToggleTrigger();
       expect(await mockCozyToken.isTriggered()).to.be.true;
     });
 
     it('properly updates the saved state', async () => {
       // Get initial state
-      const initialPricePerShare = (await trigger.lastPricePerShare()).toBigInt();
+      const initialExchangeRate = (await trigger.lastExchangeRate()).toBigInt();
 
-      // Update share price
-      const newPricePerShare = initialPricePerShare + 250n;
-      await mockYUsdc.set(newPricePerShare);
+      // Update exchange rate
+      const newExchangeRate = initialExchangeRate + 250n;
+      await mockCUsdc.set(formatBytes32String('exchangeRateStored'), newExchangeRate);
 
       // Call checkAndToggleTrigger to simulate someone using the protocol
       await trigger.checkAndToggleTrigger();
       expect(await trigger.isTriggered()).to.be.false; // sanity check
 
       // Verify the new state
-      const currentPricePerShare = await trigger.lastPricePerShare();
-      expect(currentPricePerShare.toString()).to.equal(newPricePerShare.toString()); // bigint checks are flaky with chai
+      const currentExchangeRate = await trigger.lastExchangeRate();
+      expect(currentExchangeRate.toString()).to.equal(newExchangeRate.toString()); // bigint checks are flaky with chai
     });
 
     it('properly accounts for tolerance', async () => {
-      // Modify the currently stored share price by a set tolerance
-      async function modifyLastPricePerShare(numerator: bigint, denominator: bigint) {
-        const lastPricePerShare = (await trigger.lastPricePerShare()).toBigInt();
-        const newPricePerShare = (lastPricePerShare * numerator) / denominator;
-        await mockYUsdc.set(newPricePerShare);
-        expect(await mockYUsdc.pricePerShare()).to.equal(newPricePerShare);
+      // Modify the currently stored exchange rate by a set tolerance
+      async function modifyLastExchangeRate(amount: bigint) {
+        const lastExchangeRate = (await trigger.lastExchangeRate()).toBigInt();
+        const newExchangeRate = lastExchangeRate + amount;
+        await mockCUsdc.set(formatBytes32String('exchangeRateStored'), newExchangeRate);
+        expect(await mockCUsdc.exchangeRateStored()).to.equal(newExchangeRate);
       }
 
       // Executes checkAndToggleTrigger and verifies the expected state
@@ -111,23 +110,23 @@ describe('YearnV2SharePrice', function () {
         expect(await trigger.isTriggered()).to.equal(status);
       }
 
-      // Read the trigger's tolerance (which is stored as percentage with 18 decimals such that 1e18 = 100%)
+      // Read the trigger's tolerance
       const tolerance = (await trigger.tolerance()).toBigInt();
 
-      // Increase share price to a larger value, should NOT be triggered (sanity check)
-      await modifyLastPricePerShare(101n, 100n); // 1% increase
+      // Increase exchange rate to a larger value, should NOT be triggered (sanity check)
+      await modifyLastExchangeRate(100n);
       await assertTriggerStatus(false);
 
-      // Decrease share price by an amount less than tolerance, should NOT be triggered
-      await modifyLastPricePerShare(99n, 100n); // 1% decrease
+      // Decrease exchange rate by an amount less than tolerance, should NOT be triggered
+      await modifyLastExchangeRate(tolerance - 1n);
       await assertTriggerStatus(false);
 
-      // Decrease share price by an amount exactly equal to tolerance, should NOT be triggered
-      await modifyLastPricePerShare(tolerance, 10n ** 18n);
+      // Decrease exchange rate by an amount exactly equal to tolerance, should NOT be triggered
+      await modifyLastExchangeRate(-tolerance);
       await assertTriggerStatus(false);
 
-      // Decrease share price by an amount more than tolerance, should be triggered
-      await modifyLastPricePerShare(tolerance - 1n, 10n ** 18n);
+      // Decrease exchange rate by an amount more than tolerance, should be triggered
+      await modifyLastExchangeRate(-tolerance - 1n);
       await assertTriggerStatus(true);
     });
   });

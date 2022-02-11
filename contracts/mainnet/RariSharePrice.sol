@@ -1,7 +1,7 @@
 pragma solidity ^0.8.9;
 
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITrigger.sol";
+import "../shared/interfaces/IERC20.sol";
+import "../shared/interfaces/ITrigger.sol";
 
 interface IRariVault {
   function getFundBalance() external returns (uint256);
