@@ -4,16 +4,16 @@
  * Sample deploy commands are below:
  *
  *     Deploy a mainnet Curve tricrypto pool protection market:
- *         CURVE_POOL=0xD51a44d3FaE010294C616388b506AcdA1bfAAE46 MULTISIG=0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b yarn hardhat run scripts/create-protection-market-curve3Crypto.ts --network mainnet
+ *         CURVE_POOL=0xD51a44d3FaE010294C616388b506AcdA1bfAAE46 MULTISIG=0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b yarn hardhat run scripts/generic/create-protection-market-curve3Crypto.ts --network mainnet
  *
  *     Deploy an Arbitrum Curve tricrypto pool protection market:
- *         CURVE_POOL=0x960ea3e3C7FB317332d990873d354E18d7645590 MULTISIG=0xe570e347932621d08c242035c56d79a33f4269af yarn hardhat run scripts/create-protection-market-curve3Crypto.ts --network arbitrum
+ *         CURVE_POOL=0x960ea3e3C7FB317332d990873d354E18d7645590 MULTISIG=0xe570e347932621d08c242035c56d79a33f4269af yarn hardhat run scripts/generic/create-protection-market-curve3Crypto.ts --network arbitrum
  *
  *     Deploy a mainnet Curve tricrypto pool protection market, on an instance of Hardhat that forks mainnet:
- *         CURVE_POOL=0xD51a44d3FaE010294C616388b506AcdA1bfAAE46 MULTISIG=0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b yarn hardhat run scripts/create-protection-market-curve3Crypto.ts
+ *         CURVE_POOL=0xD51a44d3FaE010294C616388b506AcdA1bfAAE46 MULTISIG=0x1725d89c5cf12F1E9423Dc21FdadC81C491a868b yarn hardhat run scripts/generic/create-protection-market-curve3Crypto.ts
  *
  *     Deploy an Abitrum Curve tricrypto pool protection market, on an instance of Hardhat that forks Arbitrum:
- *         TEST_CHAIN_FORK=arbitrum CURVE_POOL=0x960ea3e3C7FB317332d990873d354E18d7645590 MULTISIG=0xe570e347932621d08c242035c56d79a33f4269af yarn hardhat run scripts/create-protection-market-curve3Crypto.ts
+ *         TEST_CHAIN_FORK=arbitrum CURVE_POOL=0x960ea3e3C7FB317332d990873d354E18d7645590 MULTISIG=0xe570e347932621d08c242035c56d79a33f4269af yarn hardhat run scripts/generic/create-protection-market-curve3Crypto.ts
  *
  */
 import hre from 'hardhat';
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
 
   // Do some preparation
   const underlyingAddress = getContractAddress('ETH', chainId);
-  const overrides = await getGasPrice();
+  const overrides = await getGasPrice(hre, { chainId });
 
   // VERIFICATION
   // Verify the user is ok with the provided inputs

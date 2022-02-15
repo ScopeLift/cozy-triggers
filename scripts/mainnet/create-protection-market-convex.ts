@@ -3,8 +3,8 @@
  * @dev To deploy, you must define the CONVEX_POOL_ID environment variable and set it equal to one
  * of the keys of the `pools` variable, such as usdc or dai. Sample deploy commands are below:
  *
- *     CONVEX_POOL_ID=28 yarn hardhat run scripts/create-protection-market-convex.ts
- *     CONVEX_POOL_ID=16 yarn hardhat run scripts/create-protection-market-convex.ts --network mainnet
+ *     CONVEX_POOL_ID=28 yarn hardhat run scripts/mainnet/create-protection-market-convex.ts
+ *     CONVEX_POOL_ID=16 yarn hardhat run scripts/mainnet/create-protection-market-convex.ts --network mainnet
  */
 
 import hre from 'hardhat';
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
 
   // Do some preparation
   const underlyingAddress = getContractAddress(underlyingName, chainId);
-  const overrides = await getGasPrice();
+  const overrides = await getGasPrice(hre, { chainId });
   const irModelAddress = '0x2B356b2ff9D6B001d51d6aF65A05946818F5e2E6'; // re-using IR model from Yearn Curve USDN market
 
   // VERIFICATION

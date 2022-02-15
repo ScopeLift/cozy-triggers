@@ -3,8 +3,8 @@
  * @dev To deploy, you must define the RARI_VAULT environment variable and set it equal to one
  * of the keys of the `vaults` variable, such as usdc or dai. Sample deploy commands are below:
  *
- *     RARI_VAULT=usdc yarn hardhat run scripts/create-protection-market-rari.ts
- *     RARI_VAULT=dai yarn hardhat run scripts/create-protection-market-rari.ts --network mainnet
+ *     RARI_VAULT=usdc yarn hardhat run scripts/mainnet/create-protection-market-rari.ts
+ *     RARI_VAULT=dai yarn hardhat run scripts/mainnet/create-protection-market-rari.ts --network mainnet
  */
 
 import hre from 'hardhat';
@@ -123,7 +123,7 @@ async function main(): Promise<void> {
 
   // DEPLOY PROTECTION MARKET
   // If we're here, a ETH Money Market exists, so it's safe to create our new Protection Market
-  const overrides = { gasPrice: await getGasPrice() };
+  const overrides = await getGasPrice(hre, { chainId });
   const tx = await comptroller['deployProtectionMarket(address,address,address)'](
     ethAddress,
     trigger.address,

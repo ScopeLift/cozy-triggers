@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   logSuccess(`Safe to continue: Found USDC Money Market at ${cozyUsdcAddress}`);
 
   // If we're here, a USDC Money Market exists, so it's safe to create our new Protection Market
-  const overrides = { gasPrice: await getGasPrice() };
+  const overrides = await getGasPrice(hre, { chainId });
   const tx = await comptroller['deployProtectionMarket(address,address)'](usdcAddress, compoundTriggerAddress, overrides); // prettier-ignore
   console.log(`Creating Protection Market in transaction ${tx.hash}`);
 

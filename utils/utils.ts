@@ -250,39 +250,54 @@ type GasEstimate = {
   maxFeePerGas: BigNumber;
 };
 
+// non EIP-1559 transaction
+type LegacyGasEstimate = {
+  gasPrice: BigNumber;
+};
+
 // Gets the current gas price via TxPrice API
-export async function getGasPrice(gasPriceConfidence: TxPriceConfidence = 99): Promise<GasEstimate> {
-  try {
-    // Send request and find the object with a 99% chance of being included in the next block
-    const response: TxPriceResponse = (await fetch('https://api.TxPrice.com/')).data;
-    const estimatedPrice = response.blockPrices[0]?.estimatedPrices?.find(
-      (price) => price.confidence === gasPriceConfidence
-    );
+export async function getGasPrice(
+  hre: HardhatRuntimeEnvironment,
+  { chainId, gasPriceConfidence = 99 }: { chainId: number; gasPriceConfidence?: TxPriceConfidence }
+): Promise<GasEstimate | LegacyGasEstimate> {
+  if (chainId === 1) {
+    try {
+      // Send request and find the object with a 99% chance of being included in the next block
+      const response: TxPriceResponse = (await fetch('https://api.TxPrice.com/')).data;
+      const estimatedPrice = response.blockPrices[0]?.estimatedPrices?.find(
+        (price) => price.confidence === gasPriceConfidence
+      );
 
-    // Validate API response
-    const { maxPriorityFeePerGas, maxFeePerGas } = <EstimatedPrice>estimatedPrice;
+      // Validate API response
+      const { maxPriorityFeePerGas, maxFeePerGas } = <EstimatedPrice>estimatedPrice;
 
-    if (!maxPriorityFeePerGas || !maxFeePerGas) {
-      console.log(estimatedPrice);
-      throw new Error('API did not return valid gas prices');
+      if (!maxPriorityFeePerGas || !maxFeePerGas) {
+        throw new Error('API did not return valid gas prices');
+      }
+
+      if (maxPriorityFeePerGas > 100 || maxFeePerGas > 1000) {
+        throw new Error('Gas prices are very high');
+      }
+
+      // Convert prices to wei
+      const maxPriorityFeePerGasWei = parseUnits(String(maxPriorityFeePerGas), 'gwei');
+      const maxFeePerGasWei = parseUnits(String(maxFeePerGas), 'gwei');
+      return { maxPriorityFeePerGas: maxPriorityFeePerGasWei, maxFeePerGas: maxFeePerGasWei };
+    } catch (e) {
+      const message = (e as { message: string }).message;
+      throw new Error(`Error fetching gas price from TxPrice API: ${message}`);
     }
-
-    if (maxPriorityFeePerGas > 100 || maxFeePerGas > 1000) {
-      console.log(estimatedPrice);
-      throw new Error('Gas prices are very high');
-    }
-
-    // Convert prices to wei
-    const maxPriorityFeePerGasWei = parseUnits(String(maxPriorityFeePerGas), 'gwei');
-    const maxFeePerGasWei = parseUnits(String(maxFeePerGas), 'gwei');
-    return { maxPriorityFeePerGas: maxPriorityFeePerGasWei, maxFeePerGas: maxFeePerGasWei };
-  } catch (e) {
-    const message = (e as { message: string }).message;
-    throw new Error(`Error fetching gas price from TxPrice API: ${message}`);
+  } else if (chainId === 42161) {
+    // For Arbitrum, we use the legacy style gas price approach for transactions
+    // We query the node for the gas price, and bump it by 20%
+    const gasPrice = (await hre.ethers.provider.getGasPrice()).mul(12).div(10);
+    return { gasPrice };
+  } else {
+    throw new Error(`Error fetching gas price - unsupported chain id: ${chainId}`);
   }
 }
 
-// Reset state between tests by re-forking from mainnet
+// Reset state between tests by re-forking the target chain
 export async function reset() {
   await network.provider.request({
     method: 'hardhat_reset',
