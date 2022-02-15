@@ -5,7 +5,7 @@ import type { BigNumber, BigNumberish } from '@ethersproject/bignumber';
 import { keccak256 } from '@ethersproject/keccak256';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import { MockCozyToken, ICurvePool, IERC20, CurveThreeTokenBasePool } from '../../typechain';
-import { getChainId } from '../../utils/utils';
+import { reset } from '../../utils/utils';
 
 export interface Addresses {
   curve: {
@@ -141,6 +141,11 @@ export const genericCurveThreeTokenBasePoolTests = (addresses: Addresses, slots:
     }
 
     // --- Tests ---
+    before(async () => {
+      // Ensure mainnet is re-forked before test execution for each protection market to ensure storage slot state isolation
+      await reset();
+    });
+
     beforeEach(async () => {
       ({ deployer, crv3Crypto, crvToken, trigger, triggerParams } = await loadFixture(setupFixture));
     });

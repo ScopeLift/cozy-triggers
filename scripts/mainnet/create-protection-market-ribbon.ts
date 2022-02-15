@@ -92,7 +92,7 @@ async function main(): Promise<void> {
 
   // DEPLOY PROTECTION MARKET
   // If we're here, a ETH Money Market exists, so it's safe to create our new Protection Market
-  const overrides = { gasPrice: await getGasPrice() };
+  const overrides = await getGasPrice(hre, { chainId });
   const tx = await comptroller['deployProtectionMarket(address,address,address)'](
     ethAddress,
     trigger.address,
